@@ -673,7 +673,7 @@
 </head>
 <body>
 <div class="container">
-  <h1>📋 프로젝트 일정 계획노트 <span id="syncStatus" class="sync-status"></span></h1>
+  <h1>📋 프로젝트 일정 계획노트 <span id="syncStatus" class="sync-status"></span> <span id="debugInfo" style="font-size:11px; color:#bbb; font-weight:normal;"></span></h1>
 
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('planner')" id="navPlannerBtn">📅 일정계획표</button>
@@ -1683,6 +1683,13 @@ function renderProjects() {
       </div>
     `).join("");
   }
+  updateDebugInfo();
+}
+
+function updateDebugInfo() {
+  const el = document.getElementById("debugInfo");
+  if (!el) return;
+  el.textContent = `(전체 ${data.projects.length}개 · 보관 ${data.projects.filter(p => p && p.archived).length}개)`;
 }
 
 function renderTaskProjectSelect() {
