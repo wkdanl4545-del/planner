@@ -838,8 +838,14 @@ function signInAppAccount() {
   return firebase.auth().signInWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
     .catch(err => {
       // 계정이 아직 없으면(최초 1회) 만들고 로그인한다.
-      if (err.code === "auth/user-not-found") {
-        return firebase.auth().createUserWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD);
+      // 최신 Firebase는 계정 존재 여부를 숨기기 위해 user-not-found 대신 invalid-credential로 응답하기도 한다.
+      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/invalid-login-credentials") {
+        return firebase.auth().createUserWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
+          .catch(createErr => {
+            // 계정이 실제로는 있는데 다른 이유로 로그인이 막힌 경우(예: 비밀번호 불일치) 원래 오류를 보존한다.
+            if (createErr.code === "auth/email-already-in-use") throw err;
+            throw createErr;
+          });
       }
       throw err;
     });
