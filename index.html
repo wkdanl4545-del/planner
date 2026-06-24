@@ -580,31 +580,55 @@
     text-align: center;
     padding: 20px 0;
   }
+  #printArea { display: none; }
+  .print-day-block { margin-bottom: 22px; }
+  .print-day-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #333;
+  }
+  .print-task-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 4px;
+    font-size: 13px;
+    border-bottom: 1px solid #eee;
+  }
+  .print-task-row .print-badge {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .print-task-row .print-plan {
+    flex-shrink: 0;
+    width: 46px;
+    color: #777;
+  }
+  .print-task-row .print-text { flex: 1; }
+  .print-task-row.completed .print-text { color: #999; text-decoration: line-through; }
+  .print-task-row .print-actual {
+    flex-shrink: 0;
+    width: 70px;
+    color: #777;
+    font-size: 12px;
+  }
+  .print-task-row .print-remark {
+    flex-shrink: 0;
+    width: 150px;
+    color: #999;
+    font-size: 12px;
+  }
+
   @media print {
     body { background: #fff; padding: 0; }
-    .panel { box-shadow: none; border: 1px solid #ddd; }
-    .add-project-row,
-    .task-form,
-    .date-nav button,
-    .footer-actions button,
-    .del-btn,
-    .edit-btn,
-    .edit-proj,
-    .del-proj,
-    .color-trigger,
-    .color-popup,
-    .archived-section,
-    .trash-toggle,
-    .trash-panel,
-    .drag-handle,
-    .order-buttons,
-    .page-nav,
-    #statsPanel,
-    #page-flow,
-    #projectPanel {
-      display: none !important;
-    }
-    .project-tag .del-proj, .project-tag .edit-proj { display: none !important; }
+    .container > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
   }
 
   @media (max-width: 640px) {
@@ -801,6 +825,8 @@
       <div id="flowStepList"></div>
     </div>
   </div>
+
+  <div id="printArea"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -921,16 +947,17 @@ function buildCarriedTask(t) {
 }
 
 // 날짜가 바뀌면 이전 날짜의 미완료(파란색) 작업을 오늘로 자동 이동(복사)한다.
+// 완료된 작업이라도 비고란에 내용을 적어뒀다면(다음날로 전달할 의도) 함께 넘긴다.
 function autoCarryForward() {
   const today = formatDate(new Date());
   let cursor = data.lastCarryDate || today;
   while (cursor < today) {
     const next = addDays(cursor, 1);
     const day = getDay(cursor);
-    const unfinished = day.tasks.filter(t => !t.completed);
-    if (unfinished.length > 0) {
+    const toCarry = day.tasks.filter(t => !t.completed || (t.remark && t.remark.trim()));
+    if (toCarry.length > 0) {
       const nextDay = getDay(next);
-      unfinished.forEach(t => nextDay.tasks.push(buildCarriedTask(t)));
+      toCarry.forEach(t => nextDay.tasks.push(buildCarriedTask(t)));
       sortTasksByProjectOrder(nextDay.tasks);
     }
     cursor = next;
@@ -1975,7 +2002,39 @@ function moveUnfinishedToNextDay() {
   alert(`미완료 작업 ${unfinished.length}건을 ${dateLabelText(nextDateStr)}로 복사했습니다. (오늘 기록은 그대로 유지됩니다)`);
 }
 
+function buildPrintTaskRows(dateStr) {
+  const tasks = peekDay(dateStr).tasks;
+  if (tasks.length === 0) return `<div class="empty">등록된 작업이 없습니다.</div>`;
+  return tasks.map(t => {
+    const proj = projectById(t.projectId);
+    const color = proj ? proj.color : "#999";
+    const projName = proj ? proj.name : "(삭제된 프로젝트)";
+    const planStr = formatDuration(t.durationMin) || "0m";
+    const actualMin = (t.actualH || 0) * 60 + (t.actualM || 0);
+    const actualStr = formatDuration(actualMin) || "-";
+    return `
+      <div class="print-task-row ${t.completed ? "completed" : ""}">
+        <span class="print-badge" style="background:${color}">${escapeHtml(displayProjectName(projName))}</span>
+        <span class="print-plan">${planStr}</span>
+        <span class="print-text">${t.completed ? "✔ " : ""}${escapeHtml(t.text)}</span>
+        <span class="print-actual">실제 ${actualStr}</span>
+        <span class="print-remark">${t.remark ? "비고: " + escapeHtml(t.remark) : ""}</span>
+      </div>`;
+  }).join("");
+}
+
+function buildPrintDayBlock(dateStr) {
+  return `
+    <div class="print-day-block">
+      <div class="print-day-title">${dateLabelText(dateStr)}</div>
+      ${buildPrintTaskRows(dateStr)}
+    </div>`;
+}
+
 function printSchedule() {
+  const yesterday = addDays(currentDate, -1);
+  document.getElementById("printArea").innerHTML =
+    buildPrintDayBlock(yesterday) + buildPrintDayBlock(currentDate);
   window.print();
 }
 
