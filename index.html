@@ -999,7 +999,13 @@ function importData(file) {
 }
 
 function initCloudSync() {
-  if (!ensureFirebaseApp()) return;
+  if (!ensureFirebaseApp()) {
+    // gstatic.com 등 Firebase SDK를 못 불러온 경우 (네트워크 차단/광고차단 앱 등) — 원인을 알 수 있게 표시한다.
+    setSyncStatus("error");
+    const el = document.getElementById("syncStatus");
+    if (el) el.textContent = "⚠ 동기화 모듈 로드 실패 (네트워크/차단 앱 확인)";
+    return;
+  }
   setSyncStatus("syncing");
   try {
     const proceed = () => {
