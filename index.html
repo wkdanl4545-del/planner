@@ -590,39 +590,38 @@
     border-bottom: 2px solid #333;
   }
   .print-task-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     padding: 7px 4px;
-    font-size: 13px;
     border-bottom: 1px solid #eee;
+  }
+  .print-row-main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
   }
   .print-task-row .print-badge {
     flex-shrink: 0;
-    padding: 3px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    color: #fff;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    padding: 2px 7px;
+    border-radius: 9px;
+    font-size: 10px;
+    color: #fff;
   }
   .print-task-row .print-plan {
     flex-shrink: 0;
-    width: 46px;
-    color: #777;
-  }
-  .print-task-row .print-text { flex: 1; }
-  .print-task-row.completed .print-text { color: #999; text-decoration: line-through; }
-  .print-task-row .print-actual {
-    flex-shrink: 0;
-    width: 70px;
-    color: #777;
-    font-size: 12px;
-  }
-  .print-task-row .print-remark {
-    flex-shrink: 0;
-    width: 150px;
+    width: 34px;
+    font-size: 11px;
     color: #999;
-    font-size: 12px;
+  }
+  .print-task-row .print-text { flex: 1; font-size: 15px; }
+  .print-task-row.completed .print-text { color: #999; text-decoration: line-through; }
+  .print-row-sub {
+    margin-top: 3px;
+    padding-left: 2px;
+    font-size: 11px;
+    color: #999;
   }
 
   @media print {
@@ -786,7 +785,7 @@
       <span style="width:60px;">계획시간</span>
       <span style="flex:1;">내용</span>
       <span style="width:120px;">실제 소요시간</span>
-      <span style="width:130px;">비고 (다음날 내용으로 전달)</span>
+      <span style="width:130px;">비고</span>
       <span style="width:34px;"></span>
     </div>
     <ul class="task-list" id="taskList"></ul>
@@ -2011,14 +2010,18 @@ function buildPrintTaskRows(dateStr) {
     const projName = proj ? proj.name : "(삭제된 프로젝트)";
     const planStr = formatDuration(t.durationMin) || "0m";
     const actualMin = (t.actualH || 0) * 60 + (t.actualM || 0);
-    const actualStr = formatDuration(actualMin) || "-";
+    const actualStr = formatDuration(actualMin);
+    const subParts = [];
+    if (actualStr) subParts.push("실제 " + actualStr);
+    if (t.remark) subParts.push("비고: " + escapeHtml(t.remark));
     return `
       <div class="print-task-row ${t.completed ? "completed" : ""}">
-        <span class="print-badge" style="background:${color}">${escapeHtml(displayProjectName(projName))}</span>
-        <span class="print-plan">${planStr}</span>
-        <span class="print-text">${t.completed ? "✔ " : ""}${escapeHtml(t.text)}</span>
-        <span class="print-actual">실제 ${actualStr}</span>
-        <span class="print-remark">${t.remark ? "비고: " + escapeHtml(t.remark) : ""}</span>
+        <div class="print-row-main">
+          <span class="print-badge" style="background:${color}">${escapeHtml(displayProjectName(projName))}</span>
+          <span class="print-plan">${planStr}</span>
+          <span class="print-text">${t.completed ? "✔ " : ""}${escapeHtml(t.text)}</span>
+        </div>
+        ${subParts.length ? `<div class="print-row-sub">${subParts.join(" · ")}</div>` : ""}
       </div>`;
   }).join("");
 }
