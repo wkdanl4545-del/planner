@@ -930,13 +930,13 @@ function cloudDocRef() {
   return cloudDb.collection("mindmap_data").doc(AUTH_ID).collection("planner").doc("main");
 }
 
-function setSyncStatus(state) {
+function setSyncStatus(state, detail) {
   const el = document.getElementById("syncStatus");
   if (!el) return;
   el.className = "sync-status " + state;
   if (state === "syncing") el.textContent = "🔄 동기화 중...";
   else if (state === "synced") el.textContent = "☁️ 동기화됨";
-  else if (state === "error") el.textContent = "⚠ 동기화 실패";
+  else if (state === "error") el.textContent = "⚠ 동기화 실패" + (detail ? ` (${detail})` : "");
   else el.textContent = "";
 }
 
@@ -947,7 +947,7 @@ function pushToCloud() {
   cloudPushTimer = setTimeout(() => {
     cloudDocRef().set(data)
       .then(() => setSyncStatus("synced"))
-      .catch(err => { console.error("클라우드 저장 실패", err); setSyncStatus("error"); });
+      .catch(err => { console.error("클라우드 저장 실패", err); setSyncStatus("error", err.code || err.message); });
   }, 400);
 }
 
@@ -1040,19 +1040,19 @@ function initCloudSync() {
         } else {
           setSyncStatus("synced");
         }
-      }, err => { console.error("동기화 수신 오류", err); setSyncStatus("error"); });
+      }, err => { console.error("동기화 수신 오류", err); setSyncStatus("error", err.code || err.message); });
     };
     if (firebase.auth().currentUser) {
       proceed();
     } else {
       firebase.auth().signInAnonymously().then(proceed).catch(err => {
         console.error("Firebase 익명 로그인 실패", err);
-        setSyncStatus("error");
+        setSyncStatus("error", err.code || err.message);
       });
     }
   } catch (err) {
     console.error("Firebase 초기화 실패", err);
-    setSyncStatus("error");
+    setSyncStatus("error", err.code || err.message);
   }
 }
 
