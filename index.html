@@ -809,6 +809,16 @@
 <script>
 const STORAGE_KEY = "plannerData_v1";
 
+// 렌더링 중 예외가 나면 화면 일부가 조용히 비어버리는 대신 바로 눈에 보이게 표시한다 (디버깅용).
+window.addEventListener("error", (e) => {
+  console.error(e.error || e.message);
+  const el = document.getElementById("syncStatus");
+  if (el) {
+    el.className = "sync-status error";
+    el.textContent = "⚠ 오류 발생: " + (e.message || "알 수 없는 오류") + " (새로고침해보세요)";
+  }
+});
+
 // 마인드맵 앱과 동일한 Firebase 프로젝트를 사용해 기기 간 자동 동기화를 한다.
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDSm06kUiCfX1KDIMSLOCszp6z0Zn_XmtY",
