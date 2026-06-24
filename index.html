@@ -682,7 +682,10 @@
 
   <div id="page-planner">
   <div style="text-align:right; margin-bottom:8px;">
-    <button class="trash-toggle" onclick="toggleTrashPanel()" id="trashToggleBtn">🗑 삭제 기록 복구</button>
+    <button class="trash-toggle" onclick="exportData()" title="현재 데이터를 파일로 내보내기 (다른 주소/기기로 옮길 때 사용)">⬇ 내보내기</button>
+    <label class="trash-toggle" for="importFileInput" style="margin-left:8px; cursor:pointer;" title="내보낸 파일을 불러와 현재 데이터를 덮어쓰기">⬆ 가져오기</label>
+    <input type="file" id="importFileInput" accept=".json,application/json" hidden onchange="importData(this.files[0])">
+    <button class="trash-toggle" onclick="toggleTrashPanel()" id="trashToggleBtn" style="margin-left:8px;">🗑 삭제 기록 복구</button>
     <button class="trash-toggle" onclick="toggleStatsPanel()" id="statsToggleBtn" style="margin-left:8px;">📊 일정 통계</button>
   </div>
 
@@ -838,8 +841,21 @@ let statsAnchorDate = formatDate(new Date());
 let editingFlowStepId = null;
 let currentFlowProjectId = null;
 let dragFlowStepId = null;
+let lastKnownToday = formatDate(new Date());
 autoCarryForward();
 initCloudSync();
+
+// 탭을 닫지 않고 자정을 넘기는 경우에도(새로고침 없이) 1분마다 날짜 변경을 감지해 자동 이동을 수행한다.
+setInterval(() => {
+  const today = formatDate(new Date());
+  if (today !== lastKnownToday) {
+    const wasViewingOldToday = (currentDate === lastKnownToday);
+    lastKnownToday = today;
+    autoCarryForward();
+    if (wasViewingOldToday) currentDate = today;
+    renderTasks();
+  }
+}, 60000);
 
 function formatDate(d) {
   const y = d.getFullYear();
@@ -935,6 +951,51 @@ function applyRemoteData(remote) {
   applyProjectListCollapse();
   applyingRemoteUpdate = false;
   setSyncStatus("synced");
+}
+
+// 다른 주소(file:// 로컬 파일 등)에서 작성한 데이터를 이 사이트로 옮길 때 쓰는 내보내기/가져오기.
+// localStorage와 클라우드 동기화는 origin(주소)별로 분리되어 있어 자동으로 합쳐지지 않으므로 수동 이전이 필요하다.
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `planner-backup-${formatDate(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+  if (!file) return;
+  if (!confirm("불러온 파일의 내용으로 현재 데이터를 덮어씁니다. 계속할까요?")) {
+    document.getElementById("importFileInput").value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      data = imported;
+      if (!data.projects) data.projects = [];
+      if (!data.days) data.days = {};
+      if (!data.trash) data.trash = { tasks: [], projects: [] };
+      if (!data.uiState) data.uiState = { projectListCollapsed: false };
+      autoCarryForward();
+      saveData();
+      renderProjects();
+      renderTaskProjectSelect();
+      renderTasks();
+      renderTrash();
+      renderFlowSteps();
+      applyProjectListCollapse();
+      alert("데이터를 불러왔습니다.");
+    } catch (err) {
+      console.error("가져오기 실패", err);
+      alert("파일을 읽는 중 오류가 발생했습니다. 올바른 내보내기 파일인지 확인해주세요.");
+    }
+    document.getElementById("importFileInput").value = "";
+  };
+  reader.readAsText(file);
 }
 
 function initCloudSync() {
