@@ -1610,11 +1610,12 @@ function displayProjectName(name) {
 }
 
 function compareProjectNames(a, b) {
-  return a.localeCompare(b, "ko", { numeric: true, sensitivity: "base" });
+  // 이름이 비어있거나 잘못된 데이터가 섞여 있어도 전체 목록 렌더링이 깨지지 않도록 방어한다.
+  return String(a || "").localeCompare(String(b || ""), "ko", { numeric: true, sensitivity: "base" });
 }
 
 function sortProjects(list) {
-  return [...list].sort((a, b) => compareProjectNames(a.name, b.name));
+  return list.filter(Boolean).sort((a, b) => compareProjectNames(a.name, b.name));
 }
 
 function sortTasksByProjectOrder(tasks) {
@@ -1641,8 +1642,9 @@ function applyProjectListCollapse() {
 
 function renderProjects() {
   const list = document.getElementById("projectList");
-  const active = sortProjects(data.projects.filter(p => !p.archived));
-  const archived = sortProjects(data.projects.filter(p => p.archived));
+  const validProjects = data.projects.filter(Boolean);
+  const active = sortProjects(validProjects.filter(p => !p.archived));
+  const archived = sortProjects(validProjects.filter(p => p.archived));
 
   if (active.length === 0) {
     list.innerHTML = `<div class="empty">아직 등록된 프로젝트가 없습니다. 아래에서 추가해보세요.</div>`;
@@ -1675,7 +1677,7 @@ function renderProjects() {
 
 function renderTaskProjectSelect() {
   const sel = document.getElementById("taskProject");
-  const active = sortProjects(data.projects.filter(p => !p.archived));
+  const active = sortProjects(data.projects.filter(p => p && !p.archived));
   sel.innerHTML = active.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
   renderFlowProjectSelect();
 }
@@ -1955,7 +1957,7 @@ function renderTasks() {
   } else {
     list.innerHTML = sorted.map((t, idx) => {
       if (t.id === editingTaskId) {
-        const activeProjects = sortProjects(data.projects.filter(p => !p.archived));
+        const activeProjects = sortProjects(data.projects.filter(p => p && !p.archived));
         const planH = Math.floor((t.durationMin || 0) / 60);
         const planM = (t.durationMin || 0) % 60;
         const options = activeProjects.map(p => `<option value="${p.id}" ${p.id === t.projectId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
