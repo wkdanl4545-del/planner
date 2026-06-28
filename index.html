@@ -975,12 +975,9 @@ function afterAuth() {
   applyProjectListCollapse();
 }
 
-if (isPlannerAuthed()) {
-  showAppView();
-  afterAuth();
-} else {
-  showLoginView();
-}
+// 실제 호출은 스크립트 맨 끝에서 한다 — DAILY_BUDGET_MIN 등 아래쪽에서 선언되는 상수를
+// afterAuth() 내부 렌더 함수들이 참조하는데, 여기서 바로 호출하면 그 상수들이 아직
+// 초기화되기 전이라 "Cannot access before initialization" 오류가 난다.
 
 // 탭을 닫지 않고 자정을 넘기는 경우에도(새로고침 없이) 1분마다 날짜 변경을 감지해 자동 이동을 수행한다.
 setInterval(() => {
@@ -2271,6 +2268,13 @@ function changeDay(offset) {
 function goToday() {
   currentDate = formatDate(new Date());
   renderTasks();
+}
+
+if (isPlannerAuthed()) {
+  showAppView();
+  afterAuth();
+} else {
+  showLoginView();
 }
 </script>
 </body>
