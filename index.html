@@ -710,6 +710,8 @@
     <input type="file" id="importFileInput" accept=".json,application/json" hidden onchange="importData(this.files[0])">
     <button class="trash-toggle" onclick="toggleTrashPanel()" id="trashToggleBtn" style="margin-left:8px;">🗑 삭제 기록 복구</button>
     <button class="trash-toggle" onclick="toggleStatsPanel()" id="statsToggleBtn" style="margin-left:8px;">📊 일정 통계</button>
+    <button class="trash-toggle" onclick="logoutApp()" id="logoutBtn" style="margin-left:8px;" title="이 기기에서 클라우드 로그아웃 (다시 접속하면 자동 로그인 버튼으로 로그인 가능)">🔓 로그아웃</button>
+    <button class="trash-toggle" onclick="loginApp()" id="loginBtn" style="margin-left:8px; display:none;">🔒 로그인</button>
   </div>
 
   <div class="panel" id="trashPanel" style="display:none;">
@@ -1073,7 +1075,39 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+const LOGOUT_FLAG_KEY = "plannerLoggedOut";
+
+function applyLoginButtonState() {
+  const loggedOut = localStorage.getItem(LOGOUT_FLAG_KEY) === "1";
+  const logoutBtn = document.getElementById("logoutBtn");
+  const loginBtn = document.getElementById("loginBtn");
+  if (logoutBtn) logoutBtn.style.display = loggedOut ? "none" : "";
+  if (loginBtn) loginBtn.style.display = loggedOut ? "" : "none";
+}
+
+function logoutApp() {
+  if (!confirm("이 기기에서 클라우드 로그아웃하시겠습니까? 로그아웃 상태에서는 이 기기와 클라우드 간 동기화가 멈춥니다.")) return;
+  localStorage.setItem(LOGOUT_FLAG_KEY, "1");
+  if (typeof firebase !== "undefined" && firebase.apps.length) {
+    firebase.auth().signOut().finally(() => location.reload());
+  } else {
+    location.reload();
+  }
+}
+
+function loginApp() {
+  localStorage.removeItem(LOGOUT_FLAG_KEY);
+  location.reload();
+}
+
 function initCloudSync() {
+  applyLoginButtonState();
+  if (localStorage.getItem(LOGOUT_FLAG_KEY) === "1") {
+    setSyncStatus("error");
+    const el = document.getElementById("syncStatus");
+    if (el) el.textContent = "🔓 로그아웃 상태 (동기화 꺼짐)";
+    return;
+  }
   if (!ensureFirebaseApp()) {
     // gstatic.com 등 Firebase SDK를 못 불러온 경우 (네트워크 차단/광고차단 앱 등) — 원인을 알 수 있게 표시한다.
     setSyncStatus("error");
@@ -1082,6 +1116,7 @@ function initCloudSync() {
     return;
   }
   setSyncStatus("syncing");
+  let initialSnapshotApplied = false;
   try {
     const proceed = () => {
       cloudDb = firebase.firestore();
@@ -1091,10 +1126,20 @@ function initCloudSync() {
       }
       cloudDocRef().onSnapshot(snap => {
         if (!snap.exists) {
+          // 클라우드에 데이터가 아예 없는 경우(최초 사용)에만 로컬 데이터를 업로드해서 만든다.
+          initialSnapshotApplied = true;
           pushToCloud();
           return;
         }
         const remote = snap.data();
+        // 새 기기는 로컬에 데이터가 없어 기본값(빈 데이터)으로 시작하는데, 여기에 막 찍힌 updatedAt이
+        // 실제 클라우드 데이터보다 "더 최신"으로 오인되어 빈 데이터로 덮어쓰는 사고를 막기 위해,
+        // 이번 접속에서 처음 받는 원격 데이터는 시각 비교 없이 무조건 신뢰한다.
+        if (!initialSnapshotApplied) {
+          initialSnapshotApplied = true;
+          applyRemoteData(remote);
+          return;
+        }
         if ((remote.updatedAt || 0) > (data.updatedAt || 0)) {
           applyRemoteData(remote);
         } else {
