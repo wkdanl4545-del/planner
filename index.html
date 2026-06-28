@@ -6,6 +6,40 @@
 <title>프로젝트 일정 계획노트</title>
 <style>
   * { box-sizing: border-box; }
+  .hidden { display: none !important; }
+  #login-view {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef0f5;
+  }
+  .login-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 36px 32px;
+    width: 320px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .login-box h1 { font-size: 18px; margin: 0 0 14px; text-align: center; }
+  .login-box label { font-size: 12px; color: #6b6f7a; margin-top: 8px; }
+  .login-box label.login-remember { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 13px; }
+  .login-box label.login-remember input { width: auto; }
+  .login-box input { padding: 10px; border: 1px solid #d8dae0; border-radius: 6px; font-size: 14px; }
+  .login-submit {
+    margin-top: 16px;
+    padding: 10px;
+    font-size: 14px;
+    border: none;
+    border-radius: 6px;
+    background: #4a6cf7;
+    color: #fff;
+    cursor: pointer;
+  }
+  .login-error { color: #e0524c; font-size: 12px; margin-top: 6px; }
   body {
     font-family: "Malgun Gothic", "Segoe UI", sans-serif;
     background: #f4f6f8;
@@ -695,7 +729,19 @@
 </style>
 </head>
 <body>
-<div class="container">
+<div id="login-view">
+  <form id="login-form" class="login-box">
+    <h1>일정 계획노트 로그인</h1>
+    <label>아이디</label>
+    <input type="text" id="login-id" autocomplete="username" required>
+    <label>비밀번호</label>
+    <input type="password" id="login-pw" autocomplete="current-password" required>
+    <label class="login-remember"><input type="checkbox" id="login-remember" checked> 자동 로그인 (이 브라우저에서 다시 묻지 않기)</label>
+    <div id="login-error" class="login-error hidden">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+    <button type="submit" class="login-submit">로그인</button>
+  </form>
+</div>
+<div class="container" id="appView">
   <h1>📋 프로젝트 일정 계획노트 <span id="syncStatus" class="sync-status"></span> <span id="debugInfo" style="font-size:11px; color:#bbb; font-weight:normal;"></span></h1>
 
   <div class="page-nav">
@@ -712,8 +758,7 @@
     <input type="file" id="importFileInput" accept=".json,application/json" hidden onchange="importData(this.files[0])">
     <button class="trash-toggle" onclick="toggleTrashPanel()" id="trashToggleBtn" style="margin-left:8px;">🗑 삭제 기록 복구</button>
     <button class="trash-toggle" onclick="toggleStatsPanel()" id="statsToggleBtn" style="margin-left:8px;">📊 일정 통계</button>
-    <button class="trash-toggle" onclick="logoutApp()" id="logoutBtn" style="margin-left:8px;" title="이 기기에서 클라우드 로그아웃 (다시 접속하면 자동 로그인 버튼으로 로그인 가능)">🔓 로그아웃</button>
-    <button class="trash-toggle" onclick="loginApp()" id="loginBtn" style="margin-left:8px; display:none;">🔒 로그인</button>
+    <button class="trash-toggle" onclick="logoutApp()" style="margin-left:8px;" title="로그아웃하면 아이디/비밀번호 로그인 화면으로 돌아갑니다">🔓 로그아웃</button>
   </div>
 
   <div class="panel" id="trashPanel" style="display:none;">
@@ -862,8 +907,11 @@ const AUTH_ID = "wkdtodrls";
 // 모든 기기가 항상 동일한 계정(이메일/비밀번호)으로 로그인하도록 고정한다.
 const APP_LOGIN_EMAIL = "wkftodrls@planner.local";
 const APP_LOGIN_PASSWORD = "gudrb!!";
+// 화면 진입 자체를 막는 아이디/비밀번호 로그인 게이트 (마인드맵 앱과 동일한 방식).
 // autoCarryForward()/initCloudSync() 호출보다 먼저 선언되어야 한다 (TDZ 오류 방지).
-const LOGOUT_FLAG_KEY = "plannerLoggedOut";
+const PLANNER_LOGIN_ID = "wkftodrls";
+const PLANNER_LOGIN_PW = "gudrb!!";
+const PLANNER_AUTH_KEY = "planner_auth_v1";
 
 function signInAppAccount() {
   return firebase.auth().signInWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
@@ -915,11 +963,28 @@ let flowMindMapDoc = null;
 let flowMindMapUnsub = null;
 let flowPushTimer = null;
 let applyingRemoteFlowUpdate = false;
-autoCarryForward();
-initCloudSync();
+
+// 아이디/비밀번호 로그인에 성공한 뒤에만 실제 앱을 구동한다 (로그아웃 후 재로그인 시에도 다시 호출됨).
+function afterAuth() {
+  autoCarryForward();
+  initCloudSync();
+  renderProjects();
+  renderTaskProjectSelect();
+  renderTasks();
+  renderTrash();
+  applyProjectListCollapse();
+}
+
+if (isPlannerAuthed()) {
+  showAppView();
+  afterAuth();
+} else {
+  showLoginView();
+}
 
 // 탭을 닫지 않고 자정을 넘기는 경우에도(새로고침 없이) 1분마다 날짜 변경을 감지해 자동 이동을 수행한다.
 setInterval(() => {
+  if (!isPlannerAuthed()) return;
   const today = formatDate(new Date());
   if (today !== lastKnownToday) {
     const wasViewingOldToday = (currentDate === lastKnownToday);
@@ -1096,37 +1161,49 @@ function importData(file) {
   reader.readAsText(file);
 }
 
-function applyLoginButtonState() {
-  const loggedOut = localStorage.getItem(LOGOUT_FLAG_KEY) === "1";
-  const logoutBtn = document.getElementById("logoutBtn");
-  const loginBtn = document.getElementById("loginBtn");
-  if (logoutBtn) logoutBtn.style.display = loggedOut ? "none" : "";
-  if (loginBtn) loginBtn.style.display = loggedOut ? "" : "none";
+function isPlannerAuthed() {
+  return localStorage.getItem(PLANNER_AUTH_KEY) === "1" || sessionStorage.getItem(PLANNER_AUTH_KEY) === "1";
+}
+
+function showLoginView() {
+  document.getElementById("login-view").classList.remove("hidden");
+  document.getElementById("appView").classList.add("hidden");
+}
+
+function showAppView() {
+  document.getElementById("login-view").classList.add("hidden");
+  document.getElementById("appView").classList.remove("hidden");
 }
 
 function logoutApp() {
-  if (!confirm("이 기기에서 클라우드 로그아웃하시겠습니까? 로그아웃 상태에서는 이 기기와 클라우드 간 동기화가 멈춥니다.")) return;
-  localStorage.setItem(LOGOUT_FLAG_KEY, "1");
+  if (!confirm("로그아웃 하시겠습니까?")) return;
+  localStorage.removeItem(PLANNER_AUTH_KEY);
+  sessionStorage.removeItem(PLANNER_AUTH_KEY);
   if (typeof firebase !== "undefined" && firebase.apps.length) {
-    firebase.auth().signOut().finally(() => location.reload());
-  } else {
-    location.reload();
+    firebase.auth().signOut().catch(() => {});
   }
+  if (flowMindMapUnsub) { flowMindMapUnsub(); flowMindMapUnsub = null; }
+  cloudReady = false;
+  showLoginView();
 }
 
-function loginApp() {
-  localStorage.removeItem(LOGOUT_FLAG_KEY);
-  location.reload();
-}
+document.getElementById("login-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const id = document.getElementById("login-id").value.trim();
+  const pw = document.getElementById("login-pw").value;
+  if (id === PLANNER_LOGIN_ID && pw === PLANNER_LOGIN_PW) {
+    if (document.getElementById("login-remember").checked) localStorage.setItem(PLANNER_AUTH_KEY, "1");
+    else sessionStorage.setItem(PLANNER_AUTH_KEY, "1");
+    document.getElementById("login-error").classList.add("hidden");
+    showAppView();
+    afterAuth();
+  } else {
+    document.getElementById("login-error").textContent = "아이디 또는 비밀번호가 올바르지 않습니다.";
+    document.getElementById("login-error").classList.remove("hidden");
+  }
+});
 
 function initCloudSync() {
-  applyLoginButtonState();
-  if (localStorage.getItem(LOGOUT_FLAG_KEY) === "1") {
-    setSyncStatus("error");
-    const el = document.getElementById("syncStatus");
-    if (el) el.textContent = "🔓 로그아웃 상태 (동기화 꺼짐)";
-    return;
-  }
   if (!ensureFirebaseApp()) {
     // gstatic.com 등 Firebase SDK를 못 불러온 경우 (네트워크 차단/광고차단 앱 등) — 원인을 알 수 있게 표시한다.
     setSyncStatus("error");
@@ -2195,12 +2272,6 @@ function goToday() {
   currentDate = formatDate(new Date());
   renderTasks();
 }
-
-renderProjects();
-renderTaskProjectSelect();
-renderTasks();
-renderTrash();
-applyProjectListCollapse();
 </script>
 </body>
 </html>
