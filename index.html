@@ -705,7 +705,9 @@
 
   <div id="page-planner">
   <div style="text-align:right; margin-bottom:8px;">
-    <button class="trash-toggle" onclick="exportData()" title="현재 데이터를 파일로 내보내기 (다른 주소/기기로 옮길 때 사용)">⬇ 내보내기</button>
+    <button class="trash-toggle" onclick="saveAndSync()" id="saveAndSyncBtn" style="background:#4a6cf7; color:#fff; border-color:#4a6cf7;" title="지금 화면의 내용을 클라우드에 저장합니다 (먼저 저장한 쪽이 최종본이 됩니다)">💾 저장 및 동기화</button>
+    <button class="trash-toggle" onclick="fetchFromCloud()" id="fetchFromCloudBtn" style="margin-left:8px;" title="클라우드의 최신 데이터를 가져와 화면에 반영합니다 (이 기기의 저장 안 된 변경은 사라짐)">🔄 클라우드에서 가져오기</button>
+    <button class="trash-toggle" onclick="exportData()" style="margin-left:8px;" title="현재 데이터를 파일로 내보내기 (다른 주소/기기로 옮길 때 사용)">⬇ 내보내기</button>
     <label class="trash-toggle" for="importFileInput" style="margin-left:8px; cursor:pointer;" title="내보낸 파일을 불러와 현재 데이터를 덮어쓰기">⬆ 가져오기</label>
     <input type="file" id="importFileInput" accept=".json,application/json" hidden onchange="importData(this.files[0])">
     <button class="trash-toggle" onclick="toggleTrashPanel()" id="trashToggleBtn" style="margin-left:8px;">🗑 삭제 기록 복구</button>
@@ -860,6 +862,8 @@ const AUTH_ID = "wkdtodrls";
 // 모든 기기가 항상 동일한 계정(이메일/비밀번호)으로 로그인하도록 고정한다.
 const APP_LOGIN_EMAIL = "wkftodrls@planner.local";
 const APP_LOGIN_PASSWORD = "gudrb!!";
+// autoCarryForward()/initCloudSync() 호출보다 먼저 선언되어야 한다 (TDZ 오류 방지).
+const LOGOUT_FLAG_KEY = "plannerLoggedOut";
 
 function signInAppAccount() {
   return firebase.auth().signInWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
@@ -886,9 +890,11 @@ function loadData() {
   return parsed;
 }
 function saveData() {
+  // 클라우드 전송은 더 이상 여기서 자동으로 하지 않는다. 기기 간 실시간 동기화가 편집 중에도
+  // 서로의 데이터를 덮어써버리는 충돌을 일으켰기 때문에, 이제는 "저장 및 동기화" 버튼을 눌렀을 때만
+  // 그 시점의 데이터를 클라우드에 업로드한다(먼저 누른 쪽이 최종본이 되는 방식).
   data.updatedAt = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  pushToCloud();
 }
 
 let data = loadData();
@@ -904,7 +910,6 @@ let lastKnownToday = formatDate(new Date());
 // (let은 호이스팅되지 않아, 선언 이전에 참조하면 "Cannot access before initialization" 오류가 난다)
 let cloudReady = false;
 let cloudDb = null;
-let cloudPushTimer = null;
 let applyingRemoteUpdate = false;
 let flowMindMapDoc = null;
 let flowMindMapUnsub = null;
@@ -1003,14 +1008,30 @@ function setSyncStatus(state, detail) {
 }
 
 function pushToCloud() {
-  if (!cloudReady || applyingRemoteUpdate) return;
+  if (!cloudReady) { setSyncStatus("error", "로그인 필요"); return; }
   setSyncStatus("syncing");
-  clearTimeout(cloudPushTimer);
-  cloudPushTimer = setTimeout(() => {
-    cloudDocRef().set(data)
-      .then(() => setSyncStatus("synced"))
-      .catch(err => { console.error("클라우드 저장 실패", err); setSyncStatus("error", err.code || err.message); });
-  }, 400);
+  cloudDocRef().set(data)
+    .then(() => setSyncStatus("synced"))
+    .catch(err => { console.error("클라우드 저장 실패", err); setSyncStatus("error", err.code || err.message); });
+}
+
+// "저장 및 동기화" 버튼 — 현재 화면의 데이터를 클라우드에 그대로 덮어쓴다(먼저 누른 쪽이 최종본이 된다).
+function saveAndSync() {
+  saveData();
+  pushToCloud();
+}
+
+// 클라우드에 있는 최신 데이터를 가져와 현재 화면에 덮어쓴다(로컬에서 아직 저장하지 않은 변경은 사라진다).
+function fetchFromCloud() {
+  if (!cloudReady) { setSyncStatus("error", "로그인 필요"); return; }
+  if (!confirm("클라우드의 최신 데이터를 가져옵니다. 이 기기에서 저장하지 않은 변경 내용은 사라집니다. 계속할까요?")) return;
+  setSyncStatus("syncing");
+  cloudDocRef().get()
+    .then(snap => {
+      if (!snap.exists) { setSyncStatus("error", "클라우드에 저장된 데이터가 없음"); return; }
+      applyRemoteData(snap.data());
+    })
+    .catch(err => { console.error("클라우드 불러오기 실패", err); setSyncStatus("error", err.code || err.message); });
 }
 
 function applyRemoteData(remote) {
@@ -1075,8 +1096,6 @@ function importData(file) {
   reader.readAsText(file);
 }
 
-const LOGOUT_FLAG_KEY = "plannerLoggedOut";
-
 function applyLoginButtonState() {
   const loggedOut = localStorage.getItem(LOGOUT_FLAG_KEY) === "1";
   const logoutBtn = document.getElementById("logoutBtn");
@@ -1116,7 +1135,6 @@ function initCloudSync() {
     return;
   }
   setSyncStatus("syncing");
-  let initialSnapshotApplied = false;
   try {
     const proceed = () => {
       cloudDb = firebase.firestore();
@@ -1124,28 +1142,17 @@ function initCloudSync() {
       if (document.getElementById("page-flow").style.display !== "none") {
         subscribeFlowMindMap(currentFlowProjectId);
       }
-      cloudDocRef().onSnapshot(snap => {
+      // 실시간 자동 동기화 대신, 페이지를 열 때 한 번만 클라우드의 최신 데이터를 가져온다.
+      // 그 이후의 동기화는 "저장 및 동기화" 버튼을 눌렀을 때만 일어난다 — 편집 중에 다른 기기의
+      // 변경이 끼어들어 서로 덮어쓰는 충돌을 막기 위함이다.
+      cloudDocRef().get().then(snap => {
         if (!snap.exists) {
           // 클라우드에 데이터가 아예 없는 경우(최초 사용)에만 로컬 데이터를 업로드해서 만든다.
-          initialSnapshotApplied = true;
           pushToCloud();
           return;
         }
-        const remote = snap.data();
-        // 새 기기는 로컬에 데이터가 없어 기본값(빈 데이터)으로 시작하는데, 여기에 막 찍힌 updatedAt이
-        // 실제 클라우드 데이터보다 "더 최신"으로 오인되어 빈 데이터로 덮어쓰는 사고를 막기 위해,
-        // 이번 접속에서 처음 받는 원격 데이터는 시각 비교 없이 무조건 신뢰한다.
-        if (!initialSnapshotApplied) {
-          initialSnapshotApplied = true;
-          applyRemoteData(remote);
-          return;
-        }
-        if ((remote.updatedAt || 0) > (data.updatedAt || 0)) {
-          applyRemoteData(remote);
-        } else {
-          setSyncStatus("synced");
-        }
-      }, err => { console.error("동기화 수신 오류", err); setSyncStatus("error", err.code || err.message); });
+        applyRemoteData(snap.data());
+      }).catch(err => { console.error("동기화 수신 오류", err); setSyncStatus("error", err.code || err.message); });
     };
     if (firebase.auth().currentUser && firebase.auth().currentUser.email === APP_LOGIN_EMAIL) {
       proceed();
