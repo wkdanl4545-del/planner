@@ -616,6 +616,12 @@
   }
   #printArea { display: none; }
   .print-day-block { margin-bottom: 22px; }
+  @media print {
+    .print-day-block:not(:last-child) {
+      page-break-after: always;
+      break-after: page;
+    }
+  }
   .print-day-title {
     font-size: 16px;
     font-weight: bold;
