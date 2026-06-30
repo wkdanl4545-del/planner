@@ -663,6 +663,16 @@
     font-size: 11px;
     color: #999;
   }
+  .print-summary {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-top: 2px solid #333;
+    display: flex;
+    gap: 24px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #333;
+  }
 
   @media print {
     body { background: #fff; padding: 0; }
@@ -2174,10 +2184,23 @@ function buildPrintTaskRows(dateStr) {
 }
 
 function buildPrintDayBlock(dateStr) {
+  const tasks = peekDay(dateStr).tasks;
+  const total = tasks.length;
+  const done = tasks.filter(t => t.completed).length;
+  const planMin = tasks.reduce((sum, t) => sum + (t.durationMin || 0), 0);
+  const actualMin = tasks.reduce((sum, t) => sum + ((t.actualH || 0) * 60 + (t.actualM || 0)), 0);
+  const summaryHtml = total > 0 ? `
+    <div class="print-summary">
+      <span>전체 계획 ${total}건</span>
+      <span>완료 ${done}건</span>
+      <span>계획 시간 ${formatDuration(planMin) || "0m"}</span>
+      <span>실제 시간 ${formatDuration(actualMin) || "0m"}</span>
+    </div>` : "";
   return `
     <div class="print-day-block">
       <div class="print-day-title">${dateLabelText(dateStr)}</div>
       ${buildPrintTaskRows(dateStr)}
+      ${summaryHtml}
     </div>`;
 }
 
