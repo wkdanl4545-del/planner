@@ -673,6 +673,55 @@
     font-weight: bold;
     color: #333;
   }
+  .day-memo-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+  }
+  .day-memo-label {
+    font-size: 13px;
+    color: #777;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .day-memo-textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .memo-entry {
+    padding: 12px 4px;
+    border-bottom: 1px solid #eee;
+  }
+  .memo-entry:last-child { border-bottom: none; }
+  .memo-entry-date {
+    font-size: 13px;
+    font-weight: bold;
+    color: #4a6cf7;
+    margin-bottom: 6px;
+  }
+  .memo-entry-text {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .print-memo-block {
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ccc;
+  }
+  .print-memo-block:last-child { border-bottom: none; }
+  .print-memo-text {
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
 
   @media print {
     body { background: #fff; padding: 0; }
@@ -763,6 +812,7 @@
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('planner')" id="navPlannerBtn">📅 일정계획표</button>
     <button class="page-nav-btn" onclick="switchPage('flow')" id="navFlowBtn">🗂 프로젝트 플로우</button>
+    <button class="page-nav-btn" onclick="switchPage('memo')" id="navMemoBtn">📝 메모 정리</button>
   </div>
 
   <div id="page-planner">
@@ -862,7 +912,22 @@
         <button onclick="moveUnfinishedToNextDay()">미완료 작업 → 다음날로 이동</button>
       </div>
     </div>
+
+    <div class="day-memo-section">
+      <div class="day-memo-label">📝 메모</div>
+      <textarea id="dayMemoInput" class="day-memo-textarea" placeholder="이 날의 메모를 적어보세요" onchange="updateDayMemo(this.value)"></textarea>
+    </div>
   </div>
+  </div>
+
+  <div id="page-memo" style="display:none;">
+    <div class="panel">
+      <div class="section-header">
+        <strong>📝 메모 정리 (날짜별 전체보기)</strong>
+        <button class="trash-toggle" onclick="printAllMemos()">🖨 메모 전체 출력</button>
+      </div>
+      <div id="memoListContainer"></div>
+    </div>
   </div>
 
   <div id="page-flow" style="display:none;">
@@ -1503,11 +1568,15 @@ function pushFlowMindMapDoc() {
 function switchPage(page) {
   document.getElementById("page-planner").style.display = page === "planner" ? "block" : "none";
   document.getElementById("page-flow").style.display = page === "flow" ? "block" : "none";
+  document.getElementById("page-memo").style.display = page === "memo" ? "block" : "none";
   document.getElementById("navPlannerBtn").classList.toggle("active", page === "planner");
   document.getElementById("navFlowBtn").classList.toggle("active", page === "flow");
+  document.getElementById("navMemoBtn").classList.toggle("active", page === "memo");
   if (page === "flow") {
     renderFlowProjectSelect();
     subscribeFlowMindMap(currentFlowProjectId);
+  } else if (page === "memo") {
+    renderMemoList();
   }
 }
 
@@ -2285,6 +2354,54 @@ function renderTasks() {
   const planStr = `계획 ${formatDuration(planMin) || "0m"} / ${formatDuration(DAILY_BUDGET_MIN)}`;
   const actualStr = `실제 ${formatDuration(actualMin) || "0m"}`;
   document.getElementById("statLabel").textContent = total === 0 ? "" : `완료 ${done} / 전체 ${total}  |  ${planStr}  |  ${actualStr}`;
+  renderDayMemo();
+}
+
+function updateDayMemo(value) {
+  const day = getDay(currentDate);
+  day.memo = value;
+  saveData();
+}
+
+function renderDayMemo() {
+  const day = getDay(currentDate);
+  const el = document.getElementById("dayMemoInput");
+  if (el) el.value = day.memo || "";
+}
+
+// 메모가 적힌 날짜들을 오래된 순으로 모아 메모 정리 페이지/출력에서 함께 쓴다.
+function getMemoEntries() {
+  return Object.keys(data.days)
+    .filter(d => data.days[d] && data.days[d].memo && data.days[d].memo.trim())
+    .sort((a, b) => a.localeCompare(b))
+    .map(d => ({ date: d, memo: data.days[d].memo.trim() }));
+}
+
+function renderMemoList() {
+  const container = document.getElementById("memoListContainer");
+  const entries = getMemoEntries();
+  if (entries.length === 0) {
+    container.innerHTML = `<div class="empty">작성된 메모가 없습니다. 일정계획표 하단에서 날짜별 메모를 입력해보세요.</div>`;
+    return;
+  }
+  container.innerHTML = entries.map(e => `
+    <div class="memo-entry">
+      <div class="memo-entry-date">${dateLabelText(e.date)}</div>
+      <div class="memo-entry-text">${escapeHtml(e.memo)}</div>
+    </div>
+  `).join("");
+}
+
+function printAllMemos() {
+  const entries = getMemoEntries();
+  if (entries.length === 0) { alert("출력할 메모가 없습니다."); return; }
+  document.getElementById("printArea").innerHTML = entries.map(e => `
+    <div class="print-memo-block">
+      <div class="print-day-title">${dateLabelText(e.date)}</div>
+      <div class="print-memo-text">${escapeHtml(e.memo)}</div>
+    </div>
+  `).join("");
+  window.print();
 }
 
 function changeDay(offset) {
