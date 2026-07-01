@@ -1092,7 +1092,7 @@ function addDays(dateStr, n) {
 // 비고란에 적은 내용이 있으면 다음날로 넘어갈 때 그 내용이 새 작업의 "내용"이 된다.
 function buildCarriedTask(t) {
   const newText = (t.remark && t.remark.trim()) ? t.remark.trim() : t.text;
-  const copy = { ...t, id: uid(), text: newText, remark: "" };
+  const copy = { ...t, id: uid(), text: newText, remark: "", completed: false };
   delete copy.carriedTo; // 새로 만들어진 작업은 아직 어디로도 넘어간 적이 없는 상태로 시작한다.
   return copy;
 }
