@@ -1093,6 +1093,19 @@ setInterval(() => {
   }
 }, 60000);
 
+// 5분마다 로컬 자동 저장 (클라우드 동기화는 버튼 수동 실행 유지)
+setInterval(() => {
+  if (!isPlannerAuthed()) return;
+  saveData();
+  const el = document.getElementById("syncStatus");
+  if (!el) return;
+  const prevText = el.textContent;
+  const prevClass = el.className;
+  el.className = "sync-status synced";
+  el.textContent = "💾 자동 저장됨";
+  setTimeout(() => { el.className = prevClass; el.textContent = prevText; }, 2000);
+}, 5 * 60 * 1000);
+
 function formatDate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');
