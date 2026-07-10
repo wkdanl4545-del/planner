@@ -2329,10 +2329,20 @@ function buildPrintDayBlock(dateStr) {
     </div>`;
 }
 
+// 주말(토·일)을 건너뛰어 직전 평일을 반환한다 (월요일이면 금요일을 돌려줌).
+function prevWorkday(dateStr) {
+  let d = addDays(dateStr, -1);
+  while (true) {
+    const dow = new Date(d + "T00:00:00").getDay(); // 0=일, 6=토
+    if (dow !== 0 && dow !== 6) return d;
+    d = addDays(d, -1);
+  }
+}
+
 function printSchedule() {
-  const yesterday = addDays(currentDate, -1);
+  const prev = prevWorkday(currentDate);
   document.getElementById("printArea").innerHTML =
-    buildPrintDayBlock(yesterday) + buildPrintDayBlock(currentDate);
+    buildPrintDayBlock(prev) + buildPrintDayBlock(currentDate);
   window.print();
 }
 
