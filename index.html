@@ -742,6 +742,30 @@
     line-height: 1.5;
     white-space: pre-wrap;
   }
+  .study-summary { margin-bottom: 18px; }
+  .study-summary-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .study-summary-table th, .study-summary-table td {
+    padding: 8px 10px; border-bottom: 1px solid #eee;
+  }
+  .study-summary-table th { background: #f8f9fc; color: #777; font-weight: normal; text-align: center; }
+  .study-summary-table td { text-align: center; }
+  .study-summary-table td:first-child { text-align: left; font-weight: bold; }
+  .study-tag-link { color: #4a6cf7; text-decoration: none; }
+  .study-tag-link:hover { text-decoration: underline; }
+  .study-tag-section { margin-bottom: 22px; padding-top: 14px; border-top: 2px solid #eee; }
+  .study-tag-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .study-tag-title { font-size: 16px; font-weight: bold; color: #333; }
+  .study-tag-meta { font-size: 13px; color: #888; }
+  .study-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .study-detail-table th {
+    padding: 6px 8px; color: #999; font-weight: normal;
+    text-align: left; border-bottom: 1px solid #eee;
+  }
+  .study-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f3f3f3; }
+  .study-detail-table .study-date { color: #555; white-space: nowrap; width: 160px; }
+  .study-row-done td { color: #bbb; }
 
   @media print {
     body { background: #fff; padding: 0; }
@@ -833,6 +857,7 @@
     <button class="page-nav-btn active" onclick="switchPage('planner')" id="navPlannerBtn">📅 일정계획표</button>
     <button class="page-nav-btn" onclick="switchPage('flow')" id="navFlowBtn">🗂 프로젝트 플로우</button>
     <button class="page-nav-btn" onclick="switchPage('memo')" id="navMemoBtn">📝 메모 정리</button>
+    <button class="page-nav-btn" onclick="switchPage('study')" id="navStudyBtn">📚 스터디 정리</button>
   </div>
 
   <div id="page-planner">
@@ -947,6 +972,19 @@
         <button class="trash-toggle" onclick="printAllMemos()">🖨 메모 전체 출력</button>
       </div>
       <div id="memoListContainer"></div>
+    </div>
+  </div>
+
+  <div id="page-study" style="display:none;">
+    <div class="panel">
+      <div class="section-header">
+        <strong>📚 스터디 정리</strong>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="flow-project-select" id="studyProjectSelect" onchange="renderStudyPage()"></select>
+          <button class="trash-toggle" onclick="printStudyRecords()">🖨 스터디 출력</button>
+        </div>
+      </div>
+      <div id="studyContainer"></div>
     </div>
   </div>
 
@@ -1618,14 +1656,19 @@ function switchPage(page) {
   document.getElementById("page-planner").style.display = page === "planner" ? "block" : "none";
   document.getElementById("page-flow").style.display = page === "flow" ? "block" : "none";
   document.getElementById("page-memo").style.display = page === "memo" ? "block" : "none";
+  document.getElementById("page-study").style.display = page === "study" ? "block" : "none";
   document.getElementById("navPlannerBtn").classList.toggle("active", page === "planner");
   document.getElementById("navFlowBtn").classList.toggle("active", page === "flow");
   document.getElementById("navMemoBtn").classList.toggle("active", page === "memo");
+  document.getElementById("navStudyBtn").classList.toggle("active", page === "study");
   if (page === "flow") {
     renderFlowProjectSelect();
     subscribeFlowMindMap(currentFlowProjectId);
   } else if (page === "memo") {
     renderMemoList();
+  } else if (page === "study") {
+    renderStudyProjectSelect();
+    renderStudyPage();
   }
 }
 
@@ -2467,6 +2510,155 @@ function printAllMemos() {
       <div class="print-memo-text">${escapeHtml(e.memo)}</div>
     </div>
   `).join("");
+  window.print();
+}
+
+// ===================== 스터디 정리 =====================
+
+function renderStudyProjectSelect() {
+  const sel = document.getElementById("studyProjectSelect");
+  const saved = sel.value;
+  const projects = sortProjects(data.projects.filter(p => p && !p.archived));
+  sel.innerHTML = projects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  if (saved && projects.some(p => p.id === saved)) {
+    sel.value = saved;
+  } else {
+    const def = projects.find(p => p.name && p.name.includes("스터디"));
+    if (def) sel.value = def.id;
+  }
+}
+
+function extractStudyTag(text) {
+  const m = (text || "").match(/^\[([^\]]+)\]/);
+  return m ? `[${m[1]}]` : "(태그 없음)";
+}
+
+function extractStudyContent(text) {
+  return (text || "").replace(/^\[[^\]]+\]\s*/, "").trim() || text;
+}
+
+function getStudyGroups(projectId) {
+  const grouped = {};
+  Object.keys(data.days).sort().forEach(dateStr => {
+    const day = data.days[dateStr];
+    if (!day || !day.tasks) return;
+    day.tasks.forEach(t => {
+      if (t.projectId !== projectId) return;
+      const tag = extractStudyTag(t.text);
+      if (!grouped[tag]) grouped[tag] = [];
+      grouped[tag].push({ date: dateStr, task: t });
+    });
+  });
+  return grouped;
+}
+
+function renderStudyPage() {
+  const sel = document.getElementById("studyProjectSelect");
+  const projectId = sel ? sel.value : null;
+  const container = document.getElementById("studyContainer");
+  if (!projectId) { container.innerHTML = `<div class="empty">프로젝트를 선택해주세요.</div>`; return; }
+
+  const groups = getStudyGroups(projectId);
+  const tags = Object.keys(groups).sort();
+  if (tags.length === 0) { container.innerHTML = `<div class="empty">이 프로젝트에 등록된 일정이 없습니다.</div>`; return; }
+
+  const summaryRows = tags.map(tag => {
+    const entries = groups[tag];
+    const done = entries.filter(e => e.task.completed).length;
+    const planMin = entries.reduce((s, e) => s + (e.task.durationMin || 0), 0);
+    const actualMin = entries.reduce((s, e) => s + ((e.task.actualH||0)*60+(e.task.actualM||0)), 0);
+    return `<tr>
+      <td><a class="study-tag-link" href="#study-tag-${encodeURIComponent(tag)}">${escapeHtml(tag)}</a></td>
+      <td>${entries.length}회</td>
+      <td>${done}회</td>
+      <td>${formatDuration(planMin)||"0m"}</td>
+      <td>${formatDuration(actualMin)||"0m"}</td>
+    </tr>`;
+  }).join("");
+
+  let html = `
+    <div class="study-summary">
+      <table class="study-summary-table">
+        <thead><tr><th>구분</th><th>전체</th><th>완료</th><th>계획 시간</th><th>실제 시간</th></tr></thead>
+        <tbody>${summaryRows}</tbody>
+      </table>
+    </div>`;
+
+  tags.forEach(tag => {
+    const entries = groups[tag];
+    const actualTotal = entries.reduce((s, e) => s + ((e.task.actualH||0)*60+(e.task.actualM||0)), 0);
+    const rows = entries.map(e => {
+      const content = extractStudyContent(e.task.text);
+      const actualMin = (e.task.actualH||0)*60+(e.task.actualM||0);
+      return `<tr class="${e.task.completed ? "study-row-done" : ""}">
+        <td class="study-date">${dateLabelText(e.date)}</td>
+        <td>${escapeHtml(content)||"-"}</td>
+        <td style="text-align:right;">${formatDuration(e.task.durationMin)||"0m"}</td>
+        <td style="text-align:right;">${formatDuration(actualMin)||"-"}</td>
+        <td style="text-align:center;">${e.task.completed ? "✔" : ""}</td>
+      </tr>`;
+    }).join("");
+
+    html += `
+      <div class="study-tag-section" id="study-tag-${encodeURIComponent(tag)}">
+        <div class="study-tag-header">
+          <span class="study-tag-title">${escapeHtml(tag)}</span>
+          <span class="study-tag-meta">${entries.length}회 · 실제 ${formatDuration(actualTotal)||"0m"}</span>
+        </div>
+        <table class="study-detail-table">
+          <thead><tr><th>날짜</th><th>내용</th><th style="text-align:right;">계획</th><th style="text-align:right;">실제</th><th style="text-align:center;">완료</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function printStudyRecords() {
+  const sel = document.getElementById("studyProjectSelect");
+  const projectId = sel ? sel.value : null;
+  if (!projectId) { alert("프로젝트를 선택해주세요."); return; }
+  const groups = getStudyGroups(projectId);
+  const tags = Object.keys(groups).sort();
+  if (tags.length === 0) { alert("출력할 스터디 기록이 없습니다."); return; }
+
+  const proj = projectById(projectId);
+  const projName = proj ? proj.name : "스터디";
+  let html = `<div style="font-size:18px;font-weight:bold;margin-bottom:14px;border-bottom:2px solid #333;padding-bottom:6px;">📚 ${escapeHtml(projName)} 정리</div>`;
+
+  tags.forEach(tag => {
+    const entries = groups[tag];
+    const actualTotal = entries.reduce((s, e) => s + ((e.task.actualH||0)*60+(e.task.actualM||0)), 0);
+    const rows = entries.map(e => {
+      const content = extractStudyContent(e.task.text);
+      const actualMin = (e.task.actualH||0)*60+(e.task.actualM||0);
+      return `<tr style="border-bottom:1px solid #eee;">
+        <td style="padding:4px 6px;white-space:nowrap;">${dateLabelText(e.date)}</td>
+        <td style="padding:4px 6px;">${escapeHtml(content)||"-"}</td>
+        <td style="padding:4px 6px;text-align:right;">${formatDuration(e.task.durationMin)||"0m"}</td>
+        <td style="padding:4px 6px;text-align:right;">${formatDuration(actualMin)||"-"}</td>
+        <td style="padding:4px 6px;text-align:center;">${e.task.completed ? "✔" : ""}</td>
+      </tr>`;
+    }).join("");
+
+    html += `
+      <div class="print-memo-block">
+        <div class="print-day-title">${escapeHtml(tag)} · ${entries.length}회 · 실제 ${formatDuration(actualTotal)||"0m"}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;">
+          <thead><tr style="border-bottom:1px solid #ccc;color:#777;">
+            <th style="text-align:left;padding:4px 6px;">날짜</th>
+            <th style="text-align:left;padding:4px 6px;">내용</th>
+            <th style="text-align:right;padding:4px 6px;">계획</th>
+            <th style="text-align:right;padding:4px 6px;">실제</th>
+            <th style="text-align:center;padding:4px 6px;">완료</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  });
+
+  document.getElementById("printArea").innerHTML = html;
   window.print();
 }
 
