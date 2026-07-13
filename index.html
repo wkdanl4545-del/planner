@@ -2326,7 +2326,7 @@ function buildPrintTaskRows(dateStr) {
     const proj = projectById(t.projectId);
     const color = proj ? proj.color : "#999";
     const projName = proj ? proj.name : "(삭제된 프로젝트)";
-    const planStr = formatDuration(t.durationMin) || "0m";
+    const planStr = formatDuration(t.durationMin) || "";
     const actualMin = (t.actualH || 0) * 60 + (t.actualM || 0);
     const actualStr = formatDuration(actualMin);
     const subParts = [];
@@ -2425,7 +2425,7 @@ function renderTasks() {
       const proj = projectById(t.projectId);
       const color = proj ? proj.color : "#999";
       const projName = proj ? proj.name : "(삭제된 프로젝트)";
-      const timeStr = formatDuration(t.durationMin) || "0m";
+      const timeStr = formatDuration(t.durationMin) || "";
       const actualH = (t.actualH === undefined || t.actualH === "") ? "" : t.actualH;
       const actualM = (t.actualM === undefined || t.actualM === "") ? "" : t.actualM;
       return `
@@ -2593,7 +2593,7 @@ function renderStudyPage() {
       return `<tr class="${e.task.completed ? "study-row-done" : ""}">
         <td class="study-date">${dateLabelText(e.date)}</td>
         <td>${escapeHtml(content)||"-"}</td>
-        <td style="text-align:right;">${formatDuration(e.task.durationMin)||"0m"}</td>
+        <td style="text-align:right;">${formatDuration(e.task.durationMin)||""}</td>
         <td style="text-align:right;">${formatDuration(actualMin)||"-"}</td>
         <td style="text-align:center;">${e.task.completed ? "✔" : ""}</td>
       </tr>`;
@@ -2636,7 +2636,7 @@ function printStudyRecords() {
       return `<tr style="border-bottom:1px solid #eee;">
         <td style="padding:4px 6px;white-space:nowrap;">${dateLabelText(e.date)}</td>
         <td style="padding:4px 6px;">${escapeHtml(content)||"-"}</td>
-        <td style="padding:4px 6px;text-align:right;">${formatDuration(e.task.durationMin)||"0m"}</td>
+        <td style="padding:4px 6px;text-align:right;">${formatDuration(e.task.durationMin)||""}</td>
         <td style="padding:4px 6px;text-align:right;">${formatDuration(actualMin)||"-"}</td>
         <td style="padding:4px 6px;text-align:center;">${e.task.completed ? "✔" : ""}</td>
       </tr>`;
