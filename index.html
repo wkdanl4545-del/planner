@@ -2544,6 +2544,8 @@ function getStudyGroups(projectId) {
     if (!day || !day.tasks) return;
     day.tasks.forEach(t => {
       if (t.projectId !== projectId) return;
+      const actualMin = (t.actualH || 0) * 60 + (t.actualM || 0);
+      if (!t.durationMin && !actualMin) return; // 계획·실제 모두 0이면 제외
       const tag = extractStudyTag(t.text);
       if (!grouped[tag]) grouped[tag] = [];
       grouped[tag].push({ date: dateStr, task: t });
