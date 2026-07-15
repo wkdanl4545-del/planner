@@ -800,6 +800,19 @@
     body { background: #fff; padding: 0; }
     .container > *:not(#printArea) { display: none !important; }
     #printArea { display: block !important; }
+    .print-task-row .print-text {
+      color: #1565c0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .print-task-row.completed .print-text {
+      color: #e53935 !important;
+      text-decoration: line-through !important;
+      text-decoration-color: #e53935 !important;
+      text-decoration-thickness: 2px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
 
   @media (max-width: 640px) {
