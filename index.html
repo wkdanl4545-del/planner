@@ -529,6 +529,35 @@
     color: #555;
   }
   .task-item .remark-input::placeholder { color: #ccc; }
+  .priority-select {
+    padding: 7px 4px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    width: 68px;
+    flex-shrink: 0;
+  }
+  .task-item .priority-badge {
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: #fff;
+    flex-shrink: 0;
+    min-width: 32px;
+    text-align: center;
+  }
+  .print-priority {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .task-item.completed .text {
     color: #e53935;
     text-decoration: line-through;
@@ -930,6 +959,13 @@
 
     <div class="task-form">
       <select id="taskProject"></select>
+      <select id="taskPriority" class="priority-select">
+        <option value="상">상</option>
+        <option value="상중">상중</option>
+        <option value="중" selected>중</option>
+        <option value="중하">중하</option>
+        <option value="하">하</option>
+      </select>
       <span class="hm-group">
         <input type="number" id="taskH" min="0" placeholder="0"><span class="hm-label">H</span>
         <input type="number" id="taskM" min="0" max="59" placeholder="0"><span class="hm-label">M</span>
@@ -942,6 +978,7 @@
       <span style="width:34px;">순서</span>
       <span style="width:18px;">✓</span>
       <span style="width:90px; flex-shrink:0;">프로젝트</span>
+      <span style="width:38px; flex-shrink:0;">중요도</span>
       <span style="width:60px;">계획시간</span>
       <span style="flex:1;">내용</span>
       <span style="width:120px;">실제 소요시간</span>
@@ -1411,6 +1448,14 @@ function initCloudSync() {
 }
 
 const DAILY_BUDGET_MIN = 8 * 60;
+
+const PRIORITY_ORDER  = { "상": 1, "상중": 2, "중": 3, "중하": 4, "하": 5 };
+const PRIORITY_COLORS = { "상": "#e53935", "상중": "#fb8c00", "중": "#1e88e5", "중하": "#43a047", "하": "#9e9e9e" };
+function getPriorityOrder(p)  { return PRIORITY_ORDER[p]  || 3; }
+function getPriorityColor(p)  { return PRIORITY_COLORS[p] || "#1e88e5"; }
+function sortTasksByPriority(tasks) {
+  tasks.sort((a, b) => getPriorityOrder(a.priority) - getPriorityOrder(b.priority));
+}
 
 const PRESET_COLORS = [
   "#6c8ebf", "#7fa37f", "#9d7bb0", "#c97b63",
@@ -2081,8 +2126,10 @@ function addTask() {
   const m = mInput.value === "" ? 0 : (parseInt(mInput.value, 10) || 0);
   const durationMin = h * 60 + m;
 
+  const priority = document.getElementById("taskPriority").value;
   const day = getDay(currentDate);
-  day.tasks.push({ id: uid(), projectId, durationMin, text, completed: false, actualH: "", actualM: "", remark: "" });
+  day.tasks.push({ id: uid(), projectId, durationMin, text, completed: false, actualH: "", actualM: "", remark: "", priority });
+  sortTasksByPriority(day.tasks);
   document.getElementById("taskText").value = "";
   hInput.value = "";
   mInput.value = "";
@@ -2206,6 +2253,8 @@ function saveEditTask(taskId) {
   task.projectId = projectId;
   task.durationMin = h * 60 + m;
   task.text = text;
+  task.priority = document.getElementById(`editPriority_${taskId}`).value;
+  sortTasksByPriority(day.tasks);
 
   editingTaskId = null;
   saveData();
@@ -2335,6 +2384,7 @@ function buildPrintTaskRows(dateStr) {
     return `
       <div class="print-task-row ${t.completed ? "completed" : ""}">
         <div class="print-row-main">
+          <span class="print-priority" style="background:${getPriorityColor(t.priority)}">${t.priority||"중"}</span>
           <span class="print-badge" style="background:${color}">${escapeHtml(displayProjectName(projName))}</span>
           <span class="print-plan">${planStr}</span>
           <span class="print-text">${t.completed ? "✔ " : ""}${escapeHtml(t.text)}</span>
@@ -2398,6 +2448,7 @@ function renderTasks() {
   const day = getDay(currentDate);
   const list = document.getElementById("taskList");
 
+  sortTasksByPriority(day.tasks);
   const sorted = day.tasks;
 
   if (sorted.length === 0) {
@@ -2417,6 +2468,7 @@ function renderTasks() {
               <input type="number" id="editM_${t.id}" min="0" max="59" placeholder="0" value="${planM || ""}"><span class="hm-label">M</span>
             </span>
             <input type="text" id="editText_${t.id}" value="${escapeHtml(t.text)}">
+            ${(() => { const priorityOpts = ["상","상중","중","중하","하"].map(p => `<option value="${p}" ${(t.priority||"중")===p?"selected":""}>${p}</option>`).join(""); return `<select id="editPriority_${t.id}" class="priority-select">${priorityOpts}</select>`; })()}
             <button class="save-btn" onclick="saveEditTask('${t.id}')">저장</button>
             <button class="cancel-btn" onclick="cancelEditTask()">취소</button>
           </li>
@@ -2442,6 +2494,7 @@ function renderTasks() {
           </span>
           <input type="checkbox" class="complete-check" ${t.completed ? "checked" : ""} onchange="toggleTask('${t.id}')">
           <span class="proj-badge" style="background:${color}" title="${escapeHtml(projName)}">${escapeHtml(displayProjectName(projName))}</span>
+          <span class="priority-badge" style="background:${getPriorityColor(t.priority)}">${t.priority||"중"}</span>
           <span class="time">${timeStr}</span>
           <span class="text">${escapeHtml(t.text)}</span>
           <span class="hm-group small">
