@@ -687,8 +687,8 @@
     font-size: 11px;
     color: #999;
   }
-  .print-task-row .print-text { flex: 1; font-size: 15px; }
-  .print-task-row.completed .print-text { color: #999; text-decoration: line-through; }
+  .print-task-row .print-text { flex: 1; font-size: 15px; color: #1565c0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-task-row.completed .print-text { color: #e53935 !important; text-decoration: line-through; text-decoration-color: #e53935; text-decoration-thickness: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-row-sub {
     margin-top: 3px;
     padding-left: 2px;
