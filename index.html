@@ -1459,11 +1459,11 @@ function isStudyTask(projectId) {
 }
 function sortTasksByPriority(tasks) {
   tasks.sort((a, b) => {
-    const sd = isStudyTask(a.projectId) - isStudyTask(b.projectId);
-    if (sd !== 0) return sd;
     const pa = (a.durationMin || 0) > 0 ? 0 : 1;
     const pb = (b.durationMin || 0) > 0 ? 0 : 1;
     if (pa !== pb) return pa - pb;
+    const sd = isStudyTask(a.projectId) - isStudyTask(b.projectId);
+    if (sd !== 0) return sd;
     return getPriorityOrder(a.priority) - getPriorityOrder(b.priority);
   });
 }
