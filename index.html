@@ -1213,8 +1213,8 @@ function addDays(dateStr, n) {
 // 비고란에 적은 내용이 있으면 다음날로 넘어갈 때 그 내용이 새 작업의 "내용"이 된다.
 function buildCarriedTask(t) {
   const newText = (t.remark && t.remark.trim()) ? t.remark.trim() : t.text;
-  const copy = { ...t, id: uid(), text: newText, remark: "", completed: false, durationMin: 0 };
-  delete copy.carriedTo; // 새로 만들어진 작업은 아직 어디로도 넘어간 적이 없는 상태로 시작한다.
+  const copy = { ...t, id: uid(), text: newText, remark: "", completed: false, durationMin: 0, actualH: "", actualM: "" };
+  delete copy.carriedTo;
   return copy;
 }
 
@@ -2232,10 +2232,11 @@ function updateActual(taskId, field, value) {
   const task = day.tasks.find(t => t.id === taskId);
   if (!task) return;
   task[field] = value === "" ? "" : (parseInt(value, 10) || 0);
-  // 실제 시간(H)만 입력하고 분(M)을 비워두면 자동으로 00분으로 처리
   if (field === "actualH" && task.actualM === "") {
     task.actualM = 0;
   }
+  const totalActual = (parseInt(task.actualH, 10) || 0) * 60 + (parseInt(task.actualM, 10) || 0);
+  if (totalActual > 0) task.completed = true;
   saveData();
   renderTasks();
 }
