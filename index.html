@@ -2227,6 +2227,25 @@ function moveTaskOrder(taskId, dir) {
   renderTasks();
 }
 
+function liveAutoCheck(inputEl) {
+  const row = inputEl.closest('li.task-item');
+  if (!row) return;
+  const inputs = row.querySelectorAll('.hm-group.small input');
+  const total = Array.from(inputs).reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+  if (total > 0) {
+    row.classList.add('completed');
+    const cb = row.querySelector('.complete-check');
+    if (cb) cb.checked = true;
+    const textEl = row.querySelector('.text');
+    if (textEl) {
+      textEl.style.color = '#e53935';
+      textEl.style.textDecoration = 'line-through';
+      textEl.style.textDecorationColor = '#e53935';
+      textEl.style.textDecorationThickness = '2px';
+    }
+  }
+}
+
 function updateActual(taskId, field, value) {
   const day = getDay(currentDate);
   const task = day.tasks.find(t => t.id === taskId);
@@ -2523,8 +2542,8 @@ function renderTasks() {
           <span class="time">${timeStr}</span>
           <span class="text">${escapeHtml(t.text)}</span>
           <span class="hm-group small">
-            <input type="number" min="0" placeholder="0" value="${actualH}" onchange="updateActual('${t.id}','actualH',this.value)"><span class="actual-label">H</span>
-            <input type="number" min="0" max="59" placeholder="0" value="${actualM}" onchange="updateActual('${t.id}','actualM',this.value)"><span class="actual-label">M</span>
+            <input type="number" min="0" placeholder="0" value="${actualH}" oninput="liveAutoCheck(this)" onchange="updateActual('${t.id}','actualH',this.value)"><span class="actual-label">H</span>
+            <input type="number" min="0" max="59" placeholder="0" value="${actualM}" oninput="liveAutoCheck(this)" onchange="updateActual('${t.id}','actualM',this.value)"><span class="actual-label">M</span>
           </span>
           <input type="text" class="remark-input" placeholder="비고 (다음날 내용으로 전달)" value="${escapeHtml(t.remark || "")}" onchange="updateRemark('${t.id}', this.value)">
           <button class="edit-btn" onclick="startEditTask('${t.id}')">수정</button>
