@@ -795,6 +795,13 @@
   .study-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f3f3f3; }
   .study-detail-table .study-date { color: #555; white-space: nowrap; width: 160px; }
   .study-row-done td { color: #bbb; }
+  .study-edit-text { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 3px 6px; font-size: 13px; font-family: inherit; background: transparent; }
+  .study-edit-text:focus { border-color: #4a6cf7; outline: none; background: #fff; }
+  .study-edit-num { width: 36px; border: 1px solid #ddd; border-radius: 4px; padding: 2px 3px; font-size: 12px; text-align: right; font-family: inherit; background: transparent; }
+  .study-edit-num:focus { border-color: #4a6cf7; outline: none; background: #fff; }
+  .study-hm-label { font-size: 11px; color: #999; }
+  .memo-entry-edit { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; font-size: 13px; font-family: inherit; min-height: 60px; resize: vertical; line-height: 1.5; color: #444; background: transparent; box-sizing: border-box; }
+  .memo-entry-edit:focus { border-color: #4a6cf7; outline: none; background: #fff; }
 
   @media print {
     body { background: #fff; padding: 0; }
@@ -2601,9 +2608,15 @@ function renderMemoList() {
   container.innerHTML = entries.map(e => `
     <div class="memo-entry">
       <div class="memo-entry-date">${dateLabelText(e.date)}</div>
-      <div class="memo-entry-text">${escapeHtml(e.memo)}</div>
+      <textarea class="memo-entry-edit" onchange="updateMemoEntry('${e.date}',this.value)">${escapeHtml(e.memo)}</textarea>
     </div>
   `).join("");
+}
+
+function updateMemoEntry(dateStr, value) {
+  const day = getDay(dateStr);
+  day.memo = value;
+  saveData();
 }
 
 function printAllMemos() {
@@ -2619,6 +2632,51 @@ function printAllMemos() {
 }
 
 // ===================== 스터디 정리 =====================
+
+function updateStudyContent(dateStr, taskId, newContent) {
+  const day = data.days[dateStr];
+  if (!day) return;
+  const task = day.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const tag = extractStudyTag(task.text);
+  task.text = tag === "(태그 없음)" ? newContent : `${tag} ${newContent}`;
+  saveData();
+}
+
+function updateStudyPlan(dateStr, taskId, field, value) {
+  const day = data.days[dateStr];
+  if (!day) return;
+  const task = day.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const cur = task.durationMin || 0;
+  const h = field === 'h' ? (parseInt(value, 10) || 0) : Math.floor(cur / 60);
+  const m = field === 'm' ? (parseInt(value, 10) || 0) : cur % 60;
+  task.durationMin = h * 60 + m;
+  saveData();
+  renderStudyPage();
+}
+
+function updateStudyActual(dateStr, taskId, field, value) {
+  const day = data.days[dateStr];
+  if (!day) return;
+  const task = day.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task[field] = value === "" ? "" : (parseInt(value, 10) || 0);
+  const total = (parseInt(task.actualH, 10) || 0) * 60 + (parseInt(task.actualM, 10) || 0);
+  task.completed = total > 0;
+  saveData();
+  renderStudyPage();
+}
+
+function updateStudyComplete(dateStr, taskId, checked) {
+  const day = data.days[dateStr];
+  if (!day) return;
+  const task = day.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.completed = checked;
+  saveData();
+  renderStudyPage();
+}
 
 function renderStudyProjectSelect() {
   const sel = document.getElementById("studyProjectSelect");
@@ -2696,13 +2754,22 @@ function renderStudyPage() {
     const actualTotal = entries.reduce((s, e) => s + ((e.task.actualH||0)*60+(e.task.actualM||0)), 0);
     const rows = entries.map(e => {
       const content = extractStudyContent(e.task.text);
-      const actualMin = (e.task.actualH||0)*60+(e.task.actualM||0);
+      const planH = Math.floor((e.task.durationMin || 0) / 60);
+      const planM = (e.task.durationMin || 0) % 60;
+      const actH = e.task.actualH === "" || e.task.actualH === undefined ? "" : e.task.actualH;
+      const actM = e.task.actualM === "" || e.task.actualM === undefined ? "" : e.task.actualM;
       return `<tr class="${e.task.completed ? "study-row-done" : ""}">
         <td class="study-date">${dateLabelText(e.date)}</td>
-        <td>${escapeHtml(content)||"-"}</td>
-        <td style="text-align:right;">${formatDuration(e.task.durationMin)||""}</td>
-        <td style="text-align:right;">${formatDuration(actualMin)||"-"}</td>
-        <td style="text-align:center;">${e.task.completed ? "✔" : ""}</td>
+        <td><input type="text" class="study-edit-text" value="${escapeHtml(content)}" onchange="updateStudyContent('${e.date}','${e.task.id}',this.value)"></td>
+        <td style="white-space:nowrap;">
+          <input type="number" class="study-edit-num" min="0" placeholder="0" value="${planH||""}" onchange="updateStudyPlan('${e.date}','${e.task.id}','h',this.value)"><span class="study-hm-label">H</span>
+          <input type="number" class="study-edit-num" min="0" max="59" placeholder="0" value="${planM||""}" onchange="updateStudyPlan('${e.date}','${e.task.id}','m',this.value)"><span class="study-hm-label">M</span>
+        </td>
+        <td style="white-space:nowrap;">
+          <input type="number" class="study-edit-num" min="0" placeholder="0" value="${actH}" onchange="updateStudyActual('${e.date}','${e.task.id}','actualH',this.value)"><span class="study-hm-label">H</span>
+          <input type="number" class="study-edit-num" min="0" max="59" placeholder="0" value="${actM}" onchange="updateStudyActual('${e.date}','${e.task.id}','actualM',this.value)"><span class="study-hm-label">M</span>
+        </td>
+        <td style="text-align:center;"><input type="checkbox" ${e.task.completed ? "checked" : ""} onchange="updateStudyComplete('${e.date}','${e.task.id}',this.checked)"></td>
       </tr>`;
     }).join("");
 
