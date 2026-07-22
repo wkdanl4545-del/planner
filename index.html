@@ -795,13 +795,18 @@
   .study-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f3f3f3; }
   .study-detail-table .study-date { color: #555; white-space: nowrap; width: 160px; }
   .study-row-done td { color: #bbb; }
-  .study-edit-text { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 3px 6px; font-size: 13px; font-family: inherit; background: transparent; }
-  .study-edit-text:focus { border-color: #4a6cf7; outline: none; background: #fff; }
-  .study-edit-num { width: 36px; border: 1px solid #ddd; border-radius: 4px; padding: 2px 3px; font-size: 12px; text-align: right; font-family: inherit; background: transparent; }
-  .study-edit-num:focus { border-color: #4a6cf7; outline: none; background: #fff; }
+  .study-edit-text { width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 3px 6px; font-size: 13px; font-family: inherit; }
+  .study-edit-text:focus { border-color: #4a6cf7; outline: none; }
+  .study-edit-num { width: 36px; border: 1px solid #ccc; border-radius: 4px; padding: 2px 3px; font-size: 12px; text-align: right; font-family: inherit; }
+  .study-edit-num:focus { border-color: #4a6cf7; outline: none; }
   .study-hm-label { font-size: 11px; color: #999; }
-  .memo-entry-edit { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; font-size: 13px; font-family: inherit; min-height: 60px; resize: vertical; line-height: 1.5; color: #444; background: transparent; box-sizing: border-box; }
-  .memo-entry-edit:focus { border-color: #4a6cf7; outline: none; background: #fff; }
+  .memo-entry-textarea { width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; font-size: 13px; font-family: inherit; min-height: 60px; resize: vertical; line-height: 1.5; color: #444; box-sizing: border-box; }
+  .memo-entry-textarea:focus { border-color: #4a6cf7; outline: none; }
+  .memo-entry-actions { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .entry-edit-btn { font-size: 12px; padding: 3px 9px; border: none; border-radius: 4px; cursor: pointer; background: #e3eaff; color: #4a6cf7; }
+  .entry-del-btn  { font-size: 12px; padding: 3px 9px; border: none; border-radius: 4px; cursor: pointer; background: #ffeaea; color: #e53935; margin-left: 4px; }
+  .entry-save-btn { font-size: 12px; padding: 3px 9px; border: none; border-radius: 4px; cursor: pointer; background: #4a6cf7; color: #fff; }
+  .entry-cancel-btn { font-size: 12px; padding: 3px 9px; border: none; border-radius: 4px; cursor: pointer; background: #eee; color: #555; margin-left: 4px; }
 
   @media print {
     body { background: #fff; padding: 0; }
@@ -2605,18 +2610,51 @@ function renderMemoList() {
     container.innerHTML = `<div class="empty">작성된 메모가 없습니다. 일정계획표 하단에서 날짜별 메모를 입력해보세요.</div>`;
     return;
   }
-  container.innerHTML = entries.map(e => `
-    <div class="memo-entry">
-      <div class="memo-entry-date">${dateLabelText(e.date)}</div>
-      <textarea class="memo-entry-edit" onchange="updateMemoEntry('${e.date}',this.value)">${escapeHtml(e.memo)}</textarea>
-    </div>
-  `).join("");
+  container.innerHTML = entries.map(e => {
+    if (editingMemoDate === e.date) {
+      return `
+        <div class="memo-entry">
+          <div class="memo-entry-actions">
+            <div class="memo-entry-date">${dateLabelText(e.date)}</div>
+            <div>
+              <button class="entry-save-btn" onclick="saveEditMemo('${e.date}')">저장</button>
+              <button class="entry-cancel-btn" onclick="cancelEditMemo()">취소</button>
+            </div>
+          </div>
+          <textarea id="memoEditArea_${e.date}" class="memo-entry-textarea">${escapeHtml(e.memo)}</textarea>
+        </div>`;
+    }
+    return `
+      <div class="memo-entry">
+        <div class="memo-entry-actions">
+          <div class="memo-entry-date">${dateLabelText(e.date)}</div>
+          <div>
+            <button class="entry-edit-btn" onclick="startEditMemo('${e.date}')">수정</button>
+            <button class="entry-del-btn"  onclick="deleteMemo('${e.date}')">삭제</button>
+          </div>
+        </div>
+        <div class="memo-entry-text">${escapeHtml(e.memo)}</div>
+      </div>`;
+  }).join("");
 }
 
-function updateMemoEntry(dateStr, value) {
+let editingMemoDate = null;
+
+function startEditMemo(dateStr) { editingMemoDate = dateStr; renderMemoList(); }
+function cancelEditMemo() { editingMemoDate = null; renderMemoList(); }
+function saveEditMemo(dateStr) {
+  const val = document.getElementById(`memoEditArea_${dateStr}`).value;
   const day = getDay(dateStr);
-  day.memo = value;
+  day.memo = val;
+  editingMemoDate = null;
   saveData();
+  renderMemoList();
+}
+function deleteMemo(dateStr) {
+  if (!confirm("이 날짜의 메모를 삭제하시겠습니까?")) return;
+  const day = data.days[dateStr];
+  if (day) { day.memo = ""; saveData(); }
+  renderMemoList();
 }
 
 function printAllMemos() {
@@ -2633,47 +2671,37 @@ function printAllMemos() {
 
 // ===================== 스터디 정리 =====================
 
-function updateStudyContent(dateStr, taskId, newContent) {
-  const day = data.days[dateStr];
-  if (!day) return;
-  const task = day.tasks.find(t => t.id === taskId);
-  if (!task) return;
-  const tag = extractStudyTag(task.text);
-  task.text = tag === "(태그 없음)" ? newContent : `${tag} ${newContent}`;
-  saveData();
-}
+let editingStudyKey = null;
 
-function updateStudyPlan(dateStr, taskId, field, value) {
+function startEditStudy(dateStr, taskId) { editingStudyKey = `${dateStr}_${taskId}`; renderStudyPage(); }
+function cancelEditStudy() { editingStudyKey = null; renderStudyPage(); }
+function saveEditStudy(dateStr, taskId) {
   const day = data.days[dateStr];
   if (!day) return;
   const task = day.tasks.find(t => t.id === taskId);
   if (!task) return;
-  const cur = task.durationMin || 0;
-  const h = field === 'h' ? (parseInt(value, 10) || 0) : Math.floor(cur / 60);
-  const m = field === 'm' ? (parseInt(value, 10) || 0) : cur % 60;
-  task.durationMin = h * 60 + m;
-  saveData();
-  renderStudyPage();
-}
-
-function updateStudyActual(dateStr, taskId, field, value) {
-  const day = data.days[dateStr];
-  if (!day) return;
-  const task = day.tasks.find(t => t.id === taskId);
-  if (!task) return;
-  task[field] = value === "" ? "" : (parseInt(value, 10) || 0);
-  const total = (parseInt(task.actualH, 10) || 0) * 60 + (parseInt(task.actualM, 10) || 0);
-  task.completed = total > 0;
+  const content  = document.getElementById(`sEditText_${taskId}`).value;
+  const planH    = parseInt(document.getElementById(`sEditPH_${taskId}`).value, 10) || 0;
+  const planM    = parseInt(document.getElementById(`sEditPM_${taskId}`).value, 10) || 0;
+  const actH     = parseInt(document.getElementById(`sEditAH_${taskId}`).value, 10) || 0;
+  const actM     = parseInt(document.getElementById(`sEditAM_${taskId}`).value, 10) || 0;
+  const done     = document.getElementById(`sEditDone_${taskId}`).checked;
+  const tag      = extractStudyTag(task.text);
+  task.text        = tag === "(태그 없음)" ? content : `${tag} ${content}`;
+  task.durationMin = planH * 60 + planM;
+  task.actualH     = actH || "";
+  task.actualM     = actM || "";
+  task.completed   = done;
+  editingStudyKey  = null;
   saveData();
   renderStudyPage();
 }
-
-function updateStudyComplete(dateStr, taskId, checked) {
+function deleteStudyTask(dateStr, taskId) {
+  if (!confirm("이 항목을 삭제하시겠습니까?")) return;
   const day = data.days[dateStr];
   if (!day) return;
-  const task = day.tasks.find(t => t.id === taskId);
-  if (!task) return;
-  task.completed = checked;
+  day.tasks = day.tasks.filter(t => t.id !== taskId);
+  editingStudyKey = null;
   saveData();
   renderStudyPage();
 }
@@ -2758,18 +2786,37 @@ function renderStudyPage() {
       const planM = (e.task.durationMin || 0) % 60;
       const actH = e.task.actualH === "" || e.task.actualH === undefined ? "" : e.task.actualH;
       const actM = e.task.actualM === "" || e.task.actualM === undefined ? "" : e.task.actualM;
+      const key = `${e.date}_${e.task.id}`;
+      if (editingStudyKey === key) {
+        return `<tr>
+          <td class="study-date">${dateLabelText(e.date)}</td>
+          <td><input type="text" id="sEditText_${e.task.id}" class="study-edit-text" value="${escapeHtml(content)}"></td>
+          <td style="white-space:nowrap;">
+            <input type="number" id="sEditPH_${e.task.id}" class="study-edit-num" min="0" placeholder="0" value="${planH||""}"><span class="study-hm-label">H</span>
+            <input type="number" id="sEditPM_${e.task.id}" class="study-edit-num" min="0" max="59" placeholder="0" value="${planM||""}"><span class="study-hm-label">M</span>
+          </td>
+          <td style="white-space:nowrap;">
+            <input type="number" id="sEditAH_${e.task.id}" class="study-edit-num" min="0" placeholder="0" value="${actH}"><span class="study-hm-label">H</span>
+            <input type="number" id="sEditAM_${e.task.id}" class="study-edit-num" min="0" max="59" placeholder="0" value="${actM}"><span class="study-hm-label">M</span>
+          </td>
+          <td style="text-align:center;"><input type="checkbox" id="sEditDone_${e.task.id}" ${e.task.completed ? "checked" : ""}></td>
+          <td style="white-space:nowrap;">
+            <button class="entry-save-btn" onclick="saveEditStudy('${e.date}','${e.task.id}')">저장</button>
+            <button class="entry-cancel-btn" onclick="cancelEditStudy()">취소</button>
+          </td>
+        </tr>`;
+      }
+      const actualMin = (e.task.actualH||0)*60+(e.task.actualM||0);
       return `<tr class="${e.task.completed ? "study-row-done" : ""}">
         <td class="study-date">${dateLabelText(e.date)}</td>
-        <td><input type="text" class="study-edit-text" value="${escapeHtml(content)}" onchange="updateStudyContent('${e.date}','${e.task.id}',this.value)"></td>
+        <td>${escapeHtml(content)||"-"}</td>
+        <td style="text-align:right;">${formatDuration(e.task.durationMin)||""}</td>
+        <td style="text-align:right;">${formatDuration(actualMin)||"-"}</td>
+        <td style="text-align:center;">${e.task.completed ? "✔" : ""}</td>
         <td style="white-space:nowrap;">
-          <input type="number" class="study-edit-num" min="0" placeholder="0" value="${planH||""}" onchange="updateStudyPlan('${e.date}','${e.task.id}','h',this.value)"><span class="study-hm-label">H</span>
-          <input type="number" class="study-edit-num" min="0" max="59" placeholder="0" value="${planM||""}" onchange="updateStudyPlan('${e.date}','${e.task.id}','m',this.value)"><span class="study-hm-label">M</span>
+          <button class="entry-edit-btn" onclick="startEditStudy('${e.date}','${e.task.id}')">수정</button>
+          <button class="entry-del-btn"  onclick="deleteStudyTask('${e.date}','${e.task.id}')">삭제</button>
         </td>
-        <td style="white-space:nowrap;">
-          <input type="number" class="study-edit-num" min="0" placeholder="0" value="${actH}" onchange="updateStudyActual('${e.date}','${e.task.id}','actualH',this.value)"><span class="study-hm-label">H</span>
-          <input type="number" class="study-edit-num" min="0" max="59" placeholder="0" value="${actM}" onchange="updateStudyActual('${e.date}','${e.task.id}','actualM',this.value)"><span class="study-hm-label">M</span>
-        </td>
-        <td style="text-align:center;"><input type="checkbox" ${e.task.completed ? "checked" : ""} onchange="updateStudyComplete('${e.date}','${e.task.id}',this.checked)"></td>
       </tr>`;
     }).join("");
 
@@ -2780,7 +2827,7 @@ function renderStudyPage() {
           <span class="study-tag-meta">${entries.length}회 · 실제 ${formatDuration(actualTotal)||"0m"}</span>
         </div>
         <table class="study-detail-table">
-          <thead><tr><th>날짜</th><th>내용</th><th style="text-align:right;">계획</th><th style="text-align:right;">실제</th><th style="text-align:center;">완료</th></tr></thead>
+          <thead><tr><th>날짜</th><th>내용</th><th style="text-align:right;">계획</th><th style="text-align:right;">실제</th><th style="text-align:center;">완료</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
