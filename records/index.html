@@ -92,23 +92,7 @@
     display: flex; align-items: center; gap: 6px;
     padding: 4px 10px; border-radius: 14px; font-size: 13px; color: #fff;
   }
-  .project-tag .proj-edit, .project-tag .proj-color, .project-tag .proj-del {
-    cursor: pointer; opacity: 0.85; font-weight: bold;
-  }
-  .project-tag .proj-edit:hover, .project-tag .proj-color:hover, .project-tag .proj-del:hover { opacity: 1; }
-  .add-project-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-  .add-project-row input[type=text] { flex: 1; min-width: 140px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
-  .add-project-row input[type=color] { width: 40px; height: 32px; border: none; padding: 0; cursor: pointer; }
-  .add-project-row button { padding: 6px 14px; border: none; background: #4a6cf7; color: #fff; border-radius: 6px; cursor: pointer; }
-  .archived-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; }
-  .archived-section .archived-title { font-size: 12px; color: #999; margin-bottom: 6px; }
-  .archived-list { display: flex; gap: 8px; flex-wrap: wrap; }
-  .archived-tag {
-    display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 14px;
-    font-size: 12px; background: #eee; color: #777;
-  }
-  .archived-tag button { border: none; background: none; cursor: pointer; font-size: 12px; color: #777; padding: 0; }
-  .archived-tag button:hover { color: #333; }
+  .project-tag.archived-tag { background: #eee !important; color: #888 !important; }
 
   .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .date-nav button { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 6px; cursor: pointer; }
@@ -252,20 +236,10 @@
   <div class="panel" id="projectPanel">
     <div class="section-header">
       <strong>📁 전체 프로젝트</strong>
-      <button class="tbtn" onclick="toggleProjectList()" id="projectListToggleBtn">▲ 접기</button>
+      <a class="tbtn" href="https://wkdanl4545-del.github.io/planner/" target="_blank" rel="noopener" title="프로젝트 추가/이름 변경/삭제는 일정계획노트에서 관리합니다">🔗 일정계획노트에서 관리</a>
     </div>
-    <div id="projectPanelBody">
-      <div class="project-list" id="projectList"></div>
-      <div class="add-project-row">
-        <input type="text" id="newProjectName" placeholder="새 프로젝트 이름">
-        <input type="color" id="newProjectColor" value="#4a6cf7">
-        <button onclick="addProject()">프로젝트 추가</button>
-      </div>
-      <div class="archived-section" id="archivedSection" style="display:none;">
-        <div class="archived-title">보관된 프로젝트</div>
-        <div class="archived-list" id="archivedList"></div>
-      </div>
-    </div>
+    <div class="project-list" id="projectList"></div>
+    <div style="font-size:12px; color:#999; margin-top:4px;">프로젝트 목록은 일정계획노트와 연동됩니다. 추가·이름 변경·삭제는 일정계획노트에서 해주세요.</div>
   </div>
 
   <div class="page-nav">
@@ -372,11 +346,9 @@ function signInAppAccount() {
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  const parsed = raw ? JSON.parse(raw) : { projects: [], records: [] };
-  if (!parsed.projects) parsed.projects = [];
+  const parsed = raw ? JSON.parse(raw) : { records: [] };
   if (!parsed.records) parsed.records = [];
-  if (!parsed.trash) parsed.trash = { records: [], projects: [] };
-  if (!parsed.uiState) parsed.uiState = { projectListCollapsed: false };
+  if (!parsed.trash) parsed.trash = { records: [] };
   return parsed;
 }
 function saveData() {
@@ -384,7 +356,21 @@ function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+// 프로젝트 목록은 이 앱에서 직접 만들지 않고, 일정계획노트(플래너) 앱의 프로젝트를 그대로 읽어와 쓴다.
+// 그래야 두 앱에서 프로젝트 이름/색이 항상 일치한다. 오프라인이거나 아직 클라우드를 못 불러왔을 때를
+// 대비해 마지막으로 받아온 목록을 로컬에 캐시해둔다.
+const PLANNER_PROJECTS_CACHE_KEY = "recordsPlannerProjectsCache_v1";
+function loadPlannerProjectsCache() {
+  const raw = localStorage.getItem(PLANNER_PROJECTS_CACHE_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+function savePlannerProjectsCache(list) {
+  localStorage.setItem(PLANNER_PROJECTS_CACHE_KEY, JSON.stringify(list));
+}
+
 let data = loadData();
+let plannerProjects = loadPlannerProjectsCache();
+let plannerProjectsUnsub = null;
 let currentDate = formatDate(new Date());
 let currentPage = "date";
 let currentProjectViewId = null;
@@ -434,6 +420,7 @@ function logoutApp() {
   if (typeof firebase !== "undefined" && firebase.apps.length) {
     firebase.auth().signOut().catch(() => {});
   }
+  if (plannerProjectsUnsub) { plannerProjectsUnsub(); plannerProjectsUnsub = null; }
   cloudReady = false;
   showLoginView();
 }
@@ -461,7 +448,6 @@ function afterAuth() {
   renderProjectViewSelect();
   renderDateView();
   renderTrash();
-  applyProjectListCollapse();
 }
 
 // ===================== 클라우드 동기화 =====================
@@ -472,6 +458,23 @@ function ensureFirebaseApp() {
 }
 function cloudDocRef() {
   return cloudDb.collection("mindmap_data").doc(AUTH_ID).collection("records").doc("main");
+}
+// 일정계획노트 앱이 저장하는 문서 — 프로젝트 목록의 원본(source of truth)이다. 여기서는 읽기만 한다.
+function plannerDocRef() {
+  return cloudDb.collection("mindmap_data").doc(AUTH_ID).collection("planner").doc("main");
+}
+function subscribePlannerProjects() {
+  if (plannerProjectsUnsub) { plannerProjectsUnsub(); plannerProjectsUnsub = null; }
+  plannerProjectsUnsub = plannerDocRef().onSnapshot(snap => {
+    if (!snap.exists) return;
+    plannerProjects = (snap.data() && snap.data().projects) || [];
+    savePlannerProjectsCache(plannerProjects);
+    renderProjects();
+    renderRecordProjectSelect();
+    renderProjectViewSelect();
+    renderDateView();
+    renderProjectView();
+  }, err => console.error("일정계획노트 프로젝트 동기화 오류", err));
 }
 function setSyncStatus(state, detail) {
   const el = document.getElementById("syncStatus");
@@ -506,10 +509,8 @@ function fetchFromCloud() {
 }
 function applyRemoteData(remote) {
   data = remote;
-  if (!data.projects) data.projects = [];
   if (!data.records) data.records = [];
-  if (!data.trash) data.trash = { records: [], projects: [] };
-  if (!data.uiState) data.uiState = { projectListCollapsed: false };
+  if (!data.trash) data.trash = { records: [] };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   renderProjects();
   renderRecordProjectSelect();
@@ -517,7 +518,6 @@ function applyRemoteData(remote) {
   renderDateView();
   renderProjectView();
   renderTrash();
-  applyProjectListCollapse();
   setSyncStatus("synced");
 }
 function initCloudSync() {
@@ -532,6 +532,7 @@ function initCloudSync() {
     const proceed = () => {
       cloudDb = firebase.firestore();
       cloudReady = true;
+      subscribePlannerProjects();
       cloudDocRef().get().then(snap => {
         if (!snap.exists) { pushToCloud(); return; }
         applyRemoteData(snap.data());
@@ -588,10 +589,8 @@ function importData(file) {
     try {
       const imported = JSON.parse(reader.result);
       data = imported;
-      if (!data.projects) data.projects = [];
       if (!data.records) data.records = [];
-      if (!data.trash) data.trash = { records: [], projects: [] };
-      if (!data.uiState) data.uiState = { projectListCollapsed: false };
+      if (!data.trash) data.trash = { records: [] };
       saveData();
       renderProjects();
       renderRecordProjectSelect();
@@ -599,7 +598,6 @@ function importData(file) {
       renderDateView();
       renderProjectView();
       renderTrash();
-      applyProjectListCollapse();
       alert("데이터를 불러왔습니다.");
     } catch (err) {
       console.error("가져오기 실패", err);
@@ -610,103 +608,16 @@ function importData(file) {
   reader.readAsText(file);
 }
 
-// ===================== 프로젝트 관리 =====================
-function projectById(id) { return data.projects.find(p => p.id === id); }
+// ===================== 프로젝트 (일정계획노트와 연동, 읽기 전용) =====================
+function projectById(id) { return plannerProjects.find(p => p.id === id); }
 function sortProjects(list) { return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko')); }
-function activeProjects() { return sortProjects(data.projects.filter(p => !p.archived)); }
+function activeProjects() { return sortProjects(plannerProjects.filter(p => !p.archived)); }
 
-function toggleProjectList() {
-  data.uiState.projectListCollapsed = !data.uiState.projectListCollapsed;
-  saveData();
-  applyProjectListCollapse();
-}
-function applyProjectListCollapse() {
-  const collapsed = data.uiState.projectListCollapsed;
-  document.getElementById("projectPanelBody").style.display = collapsed ? "none" : "block";
-  document.getElementById("projectListToggleBtn").textContent = collapsed ? "▼ 펼치기" : "▲ 접기";
-}
-
-function addProject() {
-  const nameInput = document.getElementById("newProjectName");
-  const colorInput = document.getElementById("newProjectColor");
-  const name = nameInput.value.trim();
-  if (!name) { alert("프로젝트 이름을 입력해주세요."); return; }
-  data.projects.push({ id: uid(), name, color: colorInput.value, archived: false });
-  nameInput.value = "";
-  saveData();
-  renderProjects();
-  renderRecordProjectSelect();
-  renderProjectViewSelect();
-}
-function renameProject(id) {
-  const p = projectById(id);
-  if (!p) return;
-  const name = prompt("프로젝트 이름 수정", p.name);
-  if (name === null) return;
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  p.name = trimmed;
-  saveData();
-  renderProjects();
-  renderRecordProjectSelect();
-  renderProjectViewSelect();
-  renderDateView();
-  renderProjectView();
-}
-function pickProjectColor(id) {
-  const p = projectById(id);
-  if (!p) return;
-  const input = document.createElement("input");
-  input.type = "color";
-  input.value = p.color;
-  input.style.position = "fixed";
-  input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.addEventListener("input", () => {
-    p.color = input.value;
-    saveData();
-    renderProjects();
-    renderDateView();
-    renderProjectView();
-  });
-  input.addEventListener("change", () => { document.body.removeChild(input); });
-  input.click();
-}
-function archiveProject(id) {
-  const p = projectById(id);
-  if (!p) return;
-  if (!confirm(`"${p.name}" 프로젝트를 보관하시겠습니까? (기록은 유지되며, 언제든 복원할 수 있습니다)`)) return;
-  p.archived = true;
-  saveData();
-  renderProjects();
-  renderRecordProjectSelect();
-  renderProjectViewSelect();
-}
-function restoreProject(id) {
-  const p = projectById(id);
-  if (!p) return;
-  p.archived = false;
-  saveData();
-  renderProjects();
-  renderRecordProjectSelect();
-  renderProjectViewSelect();
-}
 function renderProjects() {
   const list = activeProjects();
   document.getElementById("projectList").innerHTML = list.map(p => `
-    <span class="project-tag" style="background:${p.color}">
-      <span class="proj-name">${escapeHtml(p.name)}</span>
-      <span class="proj-color" title="색상 변경" onclick="pickProjectColor('${p.id}')">🎨</span>
-      <span class="proj-edit" title="이름 수정" onclick="renameProject('${p.id}')">✎</span>
-      <span class="proj-del" title="보관" onclick="archiveProject('${p.id}')">×</span>
-    </span>
-  `).join("") || `<span style="color:#aaa; font-size:13px;">등록된 프로젝트가 없습니다. 아래에서 추가해주세요.</span>`;
-
-  const archived = data.projects.filter(p => p.archived);
-  document.getElementById("archivedSection").style.display = archived.length ? "block" : "none";
-  document.getElementById("archivedList").innerHTML = archived.map(p => `
-    <span class="archived-tag">${escapeHtml(p.name)} <button onclick="restoreProject('${p.id}')">복원</button></span>
-  `).join("");
+    <span class="project-tag" style="background:${p.color}">${escapeHtml(p.name)}</span>
+  `).join("") || `<span style="color:#aaa; font-size:13px;">일정계획노트에 등록된 프로젝트가 없습니다. 그쪽에서 먼저 추가해주세요.</span>`;
 }
 
 // ===================== 기록(Record) CRUD =====================
@@ -717,15 +628,16 @@ function renderRecordProjectSelect() {
   const sel = document.getElementById("recProject");
   const list = activeProjects();
   sel.innerHTML = list.map(p => `<option value="${p.id}" style="color:${p.color}">${escapeHtml(p.name)}</option>`).join("")
-    || `<option value="">프로젝트를 먼저 추가해주세요</option>`;
+    || `<option value="">일정계획노트에서 프로젝트를 먼저 추가해주세요</option>`;
 }
 function renderProjectViewSelect() {
   const sel = document.getElementById("projectViewSelect");
-  const list = activeProjects();
+  // 보관된 프로젝트도 과거 기록을 확인할 수 있도록 목록에 포함한다.
+  const list = sortProjects(plannerProjects);
   if (!currentProjectViewId || !list.some(p => p.id === currentProjectViewId)) {
     currentProjectViewId = list.length ? list[0].id : null;
   }
-  sel.innerHTML = list.map(p => `<option value="${p.id}" ${p.id === currentProjectViewId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")
+  sel.innerHTML = list.map(p => `<option value="${p.id}" ${p.id === currentProjectViewId ? "selected" : ""}>${escapeHtml(p.name)}${p.archived ? " (보관됨)" : ""}</option>`).join("")
     || `<option value="">프로젝트가 없습니다</option>`;
   sel.onchange = () => { currentProjectViewId = sel.value; renderProjectView(); };
 }
@@ -737,7 +649,7 @@ function addRecord() {
   const participants = document.getElementById("recParticipants").value.trim();
   const content = document.getElementById("recContent").value.trim();
   const followUp = document.getElementById("recFollowup").value.trim();
-  if (!projectId) { alert("프로젝트를 먼저 추가해주세요."); return; }
+  if (!projectId) { alert("일정계획노트에서 프로젝트를 먼저 추가해주세요."); return; }
   if (!title) { alert("제목을 입력해주세요."); return; }
   if (!content) { alert("내용을 입력해주세요."); return; }
   data.records.push({
