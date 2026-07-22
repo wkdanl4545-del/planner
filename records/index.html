@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>프로젝트 회의·통화 기록</title>
+<style>
+  * { box-sizing: border-box; }
+  .hidden { display: none !important; }
+  #login-view {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef0f5;
+  }
+  .login-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 36px 32px;
+    width: 320px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .login-box h1 { font-size: 18px; margin: 0 0 14px; text-align: center; }
+  .login-box label { font-size: 12px; color: #6b6f7a; margin-top: 8px; }
+  .login-box label.login-remember { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 13px; }
+  .login-box label.login-remember input { width: auto; }
+  .login-box input { padding: 10px; border: 1px solid #d8dae0; border-radius: 6px; font-size: 14px; }
+  .login-submit {
+    margin-top: 16px;
+    padding: 10px;
+    font-size: 14px;
+    border: none;
+    border-radius: 6px;
+    background: #4a6cf7;
+    color: #fff;
+    cursor: pointer;
+  }
+  .login-error { color: #e0524c; font-size: 12px; margin-top: 6px; }
+  body {
+    font-family: "Malgun Gothic", "Segoe UI", sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+    color: #222;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 16px; }
+  .sync-status { font-size: 12px; font-weight: normal; color: #999; vertical-align: middle; }
+  .sync-status.synced { color: #2e7d32; }
+  .sync-status.syncing { color: #b08968; }
+  .sync-status.error { color: #c62828; }
+  .panel {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+  .tbtn {
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+  }
+  .tbtn:hover { background: #eee; }
+  .tbtn.primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .page-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .page-nav-btn {
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+    flex: 1;
+    text-align: center;
+  }
+  .page-nav-btn:hover { background: #f0f0f0; }
+  .page-nav-btn.active { background: #4a6cf7; border-color: #4a6cf7; color: #fff; font-weight: bold; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .project-list { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .project-tag {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 14px; font-size: 13px; color: #fff;
+  }
+  .project-tag .proj-edit, .project-tag .proj-color, .project-tag .proj-del {
+    cursor: pointer; opacity: 0.85; font-weight: bold;
+  }
+  .project-tag .proj-edit:hover, .project-tag .proj-color:hover, .project-tag .proj-del:hover { opacity: 1; }
+  .add-project-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .add-project-row input[type=text] { flex: 1; min-width: 140px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+  .add-project-row input[type=color] { width: 40px; height: 32px; border: none; padding: 0; cursor: pointer; }
+  .add-project-row button { padding: 6px 14px; border: none; background: #4a6cf7; color: #fff; border-radius: 6px; cursor: pointer; }
+  .archived-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; }
+  .archived-section .archived-title { font-size: 12px; color: #999; margin-bottom: 6px; }
+  .archived-list { display: flex; gap: 8px; flex-wrap: wrap; }
+  .archived-tag {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 14px;
+    font-size: 12px; background: #eee; color: #777;
+  }
+  .archived-tag button { border: none; background: none; cursor: pointer; font-size: 12px; color: #777; padding: 0; }
+  .archived-tag button:hover { color: #333; }
+
+  .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .date-nav button { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 6px; cursor: pointer; }
+  .date-nav button:hover { background: #eee; }
+  .date-nav .today-label { font-size: 18px; font-weight: bold; flex: 1; }
+
+  .rec-form {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; padding: 12px; background: #f8f9fc; border-radius: 8px;
+  }
+  .rec-form select, .rec-form input[type=text], .rec-form input[type=date], .rec-form textarea {
+    padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; font-size: 14px;
+  }
+  .rec-form .rec-type { font-weight: bold; width: 120px; }
+  .rec-form .rec-project { flex: 1; min-width: 130px; font-weight: bold; }
+  .rec-form .rec-date { width: 150px; }
+  .rec-form .rec-title { flex-basis: 100%; }
+  .rec-form .rec-participants { flex: 1; min-width: 160px; }
+  .rec-form .rec-content { flex-basis: 100%; min-height: 80px; resize: vertical; }
+  .rec-form .rec-followup { flex-basis: 100%; }
+  .rec-form button { padding: 8px 20px; border: none; background: #4a6cf7; color: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+  .filter-row select, .filter-row input[type=text] { padding: 7px 8px; border: 1px solid #ccc; border-radius: 6px; }
+  .type-tabs { display: flex; gap: 6px; }
+  .type-tab-btn { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; color: #555; }
+  .type-tab-btn.active { background: #4a6cf7; border-color: #4a6cf7; color: #fff; }
+
+  .month-header { font-size: 13px; font-weight: bold; color: #888; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+  .month-header:first-child { margin-top: 0; }
+
+  .rec-card { border: 1px solid #eee; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+  .rec-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .rec-badge { font-size: 11px; padding: 3px 9px; border-radius: 10px; color: #fff; flex-shrink: 0; font-weight: bold; }
+  .rec-badge.type-meeting { background: #1e88e5; }
+  .rec-badge.type-call { background: #43a047; }
+  .rec-proj-badge { font-size: 11px; padding: 3px 9px; border-radius: 10px; color: #fff; flex-shrink: 0; }
+  .rec-date-label { font-size: 12px; color: #999; margin-left: auto; }
+  .rec-title { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+  .rec-participants { font-size: 12px; color: #777; margin-bottom: 6px; }
+  .rec-content { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; }
+  .rec-followup { margin-top: 8px; padding: 8px 10px; background: #fff8e1; border-radius: 6px; font-size: 12px; color: #7a5c00; white-space: pre-wrap; }
+  .rec-followup-label { font-weight: bold; margin-right: 4px; }
+  .rec-actions { margin-top: 8px; display: flex; gap: 6px; }
+  .rec-actions button { border: none; background: #eef1f5; border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .rec-actions .del-btn:hover { color: #e53935; }
+  .rec-actions .edit-btn:hover { color: #4a6cf7; }
+
+  .rec-edit-form { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rec-edit-form select, .rec-edit-form input[type=text], .rec-edit-form input[type=date], .rec-edit-form textarea {
+    padding: 7px 8px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; font-size: 13px;
+  }
+  .rec-edit-form .rec-content { flex-basis: 100%; min-height: 70px; }
+  .rec-edit-form .rec-title, .rec-edit-form .rec-followup { flex-basis: 100%; }
+  .rec-edit-form .save-btn { border: none; background: #4a6cf7; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .rec-edit-form .cancel-btn { border: none; background: #eee; color: #555; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+  .empty { color: #aaa; font-size: 14px; text-align: center; padding: 24px 0; }
+
+  .trash-panel { margin-top: 10px; }
+  .trash-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .trash-actions .clear-trash { border: none; background: none; color: #999; cursor: pointer; font-size: 12px; text-decoration: underline; }
+  .trash-item { display: flex; align-items: center; gap: 10px; padding: 7px 4px; font-size: 13px; border-bottom: 1px solid #f3f3f3; }
+  .trash-item:last-child { border-bottom: none; }
+  .trash-item .trash-desc { flex: 1; color: #555; }
+  .trash-item .trash-date { font-size: 11px; color: #aaa; width: 110px; flex-shrink: 0; }
+  .trash-item button { border: none; background: #eef1f5; border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .trash-item button:hover { background: #dfe6f5; }
+
+  #printArea { display: none; }
+  .print-block { margin-bottom: 18px; }
+  .print-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #333; }
+  .print-group-header { font-size: 14px; font-weight: bold; color: #333; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #999; }
+  .print-rec { padding: 8px 4px; border-bottom: 1px solid #eee; page-break-inside: avoid; }
+  .print-rec-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+  .print-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 9px; font-size: 10px; font-weight: bold; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-rec-title { font-weight: bold; font-size: 13px; }
+  .print-rec-meta { font-size: 11px; color: #888; }
+  .print-rec-content { font-size: 12px; color: #333; line-height: 1.6; white-space: pre-wrap; margin-top: 3px; }
+  .print-rec-followup { font-size: 11px; color: #7a5c00; margin-top: 4px; white-space: pre-wrap; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .container > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 10px; }
+    .panel { padding: 14px 12px; }
+    h1 { font-size: 18px; }
+    .toolbar { justify-content: stretch; }
+    .toolbar .tbtn { flex: 1; }
+    .rec-form, .filter-row, .add-project-row { flex-direction: column; align-items: stretch; }
+    .rec-form select, .rec-form input, .rec-form textarea,
+    .filter-row select, .filter-row input,
+    .add-project-row input[type=text] { width: 100%; }
+    select, input[type=text], input[type=date], textarea { font-size: 16px; }
+    .date-nav { flex-wrap: wrap; }
+    .date-nav .today-label { order: -1; flex-basis: 100%; text-align: center; margin-bottom: 4px; font-size: 15px; }
+    .rec-date-label { margin-left: 0; }
+    .type-tabs { width: 100%; }
+    .type-tab-btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="login-view">
+  <form id="login-form" class="login-box">
+    <h1>회의·통화 기록 로그인</h1>
+    <label>아이디</label>
+    <input type="text" id="login-id" autocomplete="username" required>
+    <label>비밀번호</label>
+    <input type="password" id="login-pw" autocomplete="current-password" required>
+    <label class="login-remember"><input type="checkbox" id="login-remember" checked> 자동 로그인 (이 브라우저에서 다시 묻지 않기)</label>
+    <div id="login-error" class="login-error hidden">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+    <button type="submit" class="login-submit">로그인</button>
+  </form>
+</div>
+
+<div class="container hidden" id="appView">
+  <h1>📁 프로젝트 회의·통화 기록 <span id="syncStatus" class="sync-status"></span></h1>
+
+  <div class="toolbar">
+    <button class="tbtn primary" onclick="saveAndSync()" title="지금 화면의 내용을 클라우드에 저장합니다 (먼저 저장한 쪽이 최종본이 됩니다)">💾 저장 및 동기화</button>
+    <button class="tbtn" onclick="fetchFromCloud()" title="클라우드의 최신 데이터를 가져와 화면에 반영합니다">🔄 클라우드에서 가져오기</button>
+    <button class="tbtn" onclick="exportData()" title="현재 데이터를 파일로 내보내기">⬇ 내보내기</button>
+    <label class="tbtn" for="importFileInput" style="cursor:pointer;" title="내보낸 파일을 불러와 현재 데이터를 덮어쓰기">⬆ 가져오기</label>
+    <input type="file" id="importFileInput" accept=".json,application/json" hidden onchange="importData(this.files[0])">
+    <button class="tbtn" onclick="toggleTrashPanel()" id="trashToggleBtn">🗑 삭제 기록 복구</button>
+    <button class="tbtn" onclick="logoutApp()">🔓 로그아웃</button>
+  </div>
+
+  <div class="panel" id="trashPanel" style="display:none;">
+    <div class="trash-actions">
+      <strong style="font-size:14px;">🗑 삭제 기록 (복구 가능)</strong>
+      <button class="clear-trash" onclick="clearTrash()">전체 비우기</button>
+    </div>
+    <div id="trashList"></div>
+  </div>
+
+  <div class="panel" id="projectPanel">
+    <div class="section-header">
+      <strong>📁 전체 프로젝트</strong>
+      <button class="tbtn" onclick="toggleProjectList()" id="projectListToggleBtn">▲ 접기</button>
+    </div>
+    <div id="projectPanelBody">
+      <div class="project-list" id="projectList"></div>
+      <div class="add-project-row">
+        <input type="text" id="newProjectName" placeholder="새 프로젝트 이름">
+        <input type="color" id="newProjectColor" value="#4a6cf7">
+        <button onclick="addProject()">프로젝트 추가</button>
+      </div>
+      <div class="archived-section" id="archivedSection" style="display:none;">
+        <div class="archived-title">보관된 프로젝트</div>
+        <div class="archived-list" id="archivedList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-nav">
+    <button class="page-nav-btn active" onclick="switchPage('date')" id="navDateBtn">📅 날짜별 보기</button>
+    <button class="page-nav-btn" onclick="switchPage('project')" id="navProjectBtn">📁 프로젝트별 보기</button>
+  </div>
+
+  <div id="page-date">
+    <div class="panel">
+      <div class="date-nav">
+        <button onclick="changeDay(-1)">◀ 이전날</button>
+        <div class="today-label" id="dateLabel"></div>
+        <button onclick="goToday()">오늘</button>
+        <button onclick="changeDay(1)">다음날 ▶</button>
+      </div>
+
+      <form class="rec-form" id="recForm" onsubmit="return false;">
+        <select class="rec-type" id="recType">
+          <option value="meeting">💬 회의/의견</option>
+          <option value="call">📞 유선통화</option>
+        </select>
+        <select class="rec-project" id="recProject"></select>
+        <input type="text" class="rec-title" id="recTitle" placeholder="제목 (예: 일정 지연 관련 논의)">
+        <input type="text" class="rec-participants" id="recParticipants" placeholder="참석자 / 통화 상대방">
+        <textarea class="rec-content" id="recContent" placeholder="나온 의견, 논의 내용, 통화 내용을 자세히 적어주세요"></textarea>
+        <input type="text" class="rec-followup" id="recFollowup" placeholder="후속 조치 / 특이사항 (선택)">
+        <button onclick="addRecord()">기록 추가</button>
+      </form>
+
+      <div class="section-header" style="margin-bottom:6px;">
+        <strong style="font-size:13px; color:#777;">이 날짜의 기록</strong>
+        <button class="tbtn" onclick="printDateView()">🖨 이 날짜 출력</button>
+      </div>
+      <div id="dateRecordList"></div>
+    </div>
+  </div>
+
+  <div id="page-project" style="display:none;">
+    <div class="panel">
+      <div class="section-header">
+        <strong>📁 프로젝트별 기록</strong>
+        <button class="tbtn" onclick="printProjectView()">🖨 이 프로젝트 출력</button>
+      </div>
+      <div class="filter-row">
+        <select id="projectViewSelect" onchange="renderProjectView()"></select>
+        <div class="type-tabs">
+          <button class="type-tab-btn active" data-type="all" onclick="setProjectTypeFilter('all')">전체</button>
+          <button class="type-tab-btn" data-type="meeting" onclick="setProjectTypeFilter('meeting')">💬 회의/의견</button>
+          <button class="type-tab-btn" data-type="call" onclick="setProjectTypeFilter('call')">📞 유선통화</button>
+        </div>
+        <input type="text" id="projectSearchInput" placeholder="내용 검색..." oninput="renderProjectView()">
+      </div>
+      <div id="projectRecordList"></div>
+    </div>
+  </div>
+
+  <div id="printArea"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const STORAGE_KEY = "recordsData_v1";
+
+window.addEventListener("error", (e) => {
+  console.error(e.error || e.message);
+  const el = document.getElementById("syncStatus");
+  if (el) {
+    el.className = "sync-status error";
+    el.textContent = "⚠ 오류 발생: " + (e.message || "알 수 없는 오류") + " (새로고침해보세요)";
+  }
+});
+
+// 일정 계획노트 앱과 동일한 Firebase 계정을 사용하되, 별도의 문서 경로(records)에 저장해 서로 데이터가 섞이지 않게 한다.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDSm06kUiCfX1KDIMSLOCszp6z0Zn_XmtY",
+  authDomain: "mindmap-50e9e.firebaseapp.com",
+  projectId: "mindmap-50e9e",
+  storageBucket: "mindmap-50e9e.firebasestorage.app",
+  messagingSenderId: "743505245659",
+  appId: "1:743505245659:web:37edc72064bac51edb63fe"
+};
+const AUTH_ID = "wkdtodrls";
+const APP_LOGIN_EMAIL = "wkftodrls@planner.local";
+const APP_LOGIN_PASSWORD = "gudrb!!";
+const LOGIN_ID = "wkftodrls";
+const LOGIN_PW = "gudrb!!";
+const AUTH_KEY = "records_auth_v1";
+
+function signInAppAccount() {
+  return firebase.auth().signInWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
+    .catch(err => {
+      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/invalid-login-credentials") {
+        return firebase.auth().createUserWithEmailAndPassword(APP_LOGIN_EMAIL, APP_LOGIN_PASSWORD)
+          .catch(createErr => {
+            if (createErr.code === "auth/email-already-in-use") throw err;
+            throw createErr;
+          });
+      }
+      throw err;
+    });
+}
+
+function loadData() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  const parsed = raw ? JSON.parse(raw) : { projects: [], records: [] };
+  if (!parsed.projects) parsed.projects = [];
+  if (!parsed.records) parsed.records = [];
+  if (!parsed.trash) parsed.trash = { records: [], projects: [] };
+  if (!parsed.uiState) parsed.uiState = { projectListCollapsed: false };
+  return parsed;
+}
+function saveData() {
+  data.updatedAt = Date.now();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let data = loadData();
+let currentDate = formatDate(new Date());
+let currentPage = "date";
+let currentProjectViewId = null;
+let projectTypeFilter = "all";
+let editingRecordId = null;
+let cloudReady = false;
+let cloudDb = null;
+
+function formatDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function dateLabelText(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const weekdays = ["일","월","화","수","목","금","토"];
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
+}
+function monthLabelText(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월`;
+}
+function uid() { return Math.random().toString(36).slice(2,10); }
+function addDays(dateStr, n) {
+  return formatDate(new Date(new Date(dateStr + "T00:00:00").getTime() + n * 86400000));
+}
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+function isAuthed() {
+  return localStorage.getItem(AUTH_KEY) === "1" || sessionStorage.getItem(AUTH_KEY) === "1";
+}
+function showLoginView() {
+  document.getElementById("login-view").classList.remove("hidden");
+  document.getElementById("appView").classList.add("hidden");
+}
+function showAppView() {
+  document.getElementById("login-view").classList.add("hidden");
+  document.getElementById("appView").classList.remove("hidden");
+}
+function logoutApp() {
+  if (!confirm("로그아웃 하시겠습니까?")) return;
+  localStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
+  if (typeof firebase !== "undefined" && firebase.apps.length) {
+    firebase.auth().signOut().catch(() => {});
+  }
+  cloudReady = false;
+  showLoginView();
+}
+
+document.getElementById("login-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const id = document.getElementById("login-id").value.trim();
+  const pw = document.getElementById("login-pw").value;
+  if (id === LOGIN_ID && pw === LOGIN_PW) {
+    if (document.getElementById("login-remember").checked) localStorage.setItem(AUTH_KEY, "1");
+    else sessionStorage.setItem(AUTH_KEY, "1");
+    document.getElementById("login-error").classList.add("hidden");
+    showAppView();
+    afterAuth();
+  } else {
+    document.getElementById("login-error").textContent = "아이디 또는 비밀번호가 올바르지 않습니다.";
+    document.getElementById("login-error").classList.remove("hidden");
+  }
+});
+
+function afterAuth() {
+  initCloudSync();
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+  renderDateView();
+  renderTrash();
+  applyProjectListCollapse();
+}
+
+// ===================== 클라우드 동기화 =====================
+function ensureFirebaseApp() {
+  if (typeof firebase === "undefined") return false;
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  return true;
+}
+function cloudDocRef() {
+  return cloudDb.collection("mindmap_data").doc(AUTH_ID).collection("records").doc("main");
+}
+function setSyncStatus(state, detail) {
+  const el = document.getElementById("syncStatus");
+  if (!el) return;
+  el.className = "sync-status " + state;
+  if (state === "syncing") el.textContent = "🔄 동기화 중...";
+  else if (state === "synced") el.textContent = "☁️ 동기화됨";
+  else if (state === "error") el.textContent = "⚠ 동기화 실패" + (detail ? ` (${detail})` : "");
+  else el.textContent = "";
+}
+function pushToCloud() {
+  if (!cloudReady) { setSyncStatus("error", "로그인 필요"); return; }
+  setSyncStatus("syncing");
+  cloudDocRef().set(data)
+    .then(() => setSyncStatus("synced"))
+    .catch(err => { console.error("클라우드 저장 실패", err); setSyncStatus("error", err.code || err.message); });
+}
+function saveAndSync() {
+  saveData();
+  pushToCloud();
+}
+function fetchFromCloud() {
+  if (!cloudReady) { setSyncStatus("error", "로그인 필요"); return; }
+  if (!confirm("클라우드의 최신 데이터를 가져옵니다. 이 기기에서 저장하지 않은 변경 내용은 사라집니다. 계속할까요?")) return;
+  setSyncStatus("syncing");
+  cloudDocRef().get()
+    .then(snap => {
+      if (!snap.exists) { setSyncStatus("error", "클라우드에 저장된 데이터가 없음"); return; }
+      applyRemoteData(snap.data());
+    })
+    .catch(err => { console.error("클라우드 불러오기 실패", err); setSyncStatus("error", err.code || err.message); });
+}
+function applyRemoteData(remote) {
+  data = remote;
+  if (!data.projects) data.projects = [];
+  if (!data.records) data.records = [];
+  if (!data.trash) data.trash = { records: [], projects: [] };
+  if (!data.uiState) data.uiState = { projectListCollapsed: false };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+  renderDateView();
+  renderProjectView();
+  renderTrash();
+  applyProjectListCollapse();
+  setSyncStatus("synced");
+}
+function initCloudSync() {
+  if (!ensureFirebaseApp()) {
+    setSyncStatus("error");
+    const el = document.getElementById("syncStatus");
+    if (el) el.textContent = "⚠ 동기화 모듈 로드 실패 (네트워크/차단 앱 확인)";
+    return;
+  }
+  setSyncStatus("syncing");
+  try {
+    const proceed = () => {
+      cloudDb = firebase.firestore();
+      cloudReady = true;
+      cloudDocRef().get().then(snap => {
+        if (!snap.exists) { pushToCloud(); return; }
+        applyRemoteData(snap.data());
+      }).catch(err => { console.error("동기화 수신 오류", err); setSyncStatus("error", err.code || err.message); });
+    };
+    if (firebase.auth().currentUser && firebase.auth().currentUser.email === APP_LOGIN_EMAIL) {
+      proceed();
+    } else {
+      signInAppAccount().then(proceed).catch(err => {
+        console.error("Firebase 로그인 실패", err);
+        setSyncStatus("error", err.code || err.message);
+      });
+    }
+  } catch (err) {
+    console.error("Firebase 초기화 실패", err);
+    setSyncStatus("error", err.code || err.message);
+  }
+}
+
+// ===================== 내보내기/가져오기 =====================
+async function exportData() {
+  const filename = `records-backup-${formatDate(new Date())}.json`;
+  const json = JSON.stringify(data, null, 2);
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON 파일', accept: { 'application/json': ['.json'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(json);
+      await writable.close();
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(file) {
+  if (!file) return;
+  if (!confirm("불러온 파일의 내용으로 현재 데이터를 덮어씁니다. 계속할까요?")) {
+    document.getElementById("importFileInput").value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      data = imported;
+      if (!data.projects) data.projects = [];
+      if (!data.records) data.records = [];
+      if (!data.trash) data.trash = { records: [], projects: [] };
+      if (!data.uiState) data.uiState = { projectListCollapsed: false };
+      saveData();
+      renderProjects();
+      renderRecordProjectSelect();
+      renderProjectViewSelect();
+      renderDateView();
+      renderProjectView();
+      renderTrash();
+      applyProjectListCollapse();
+      alert("데이터를 불러왔습니다.");
+    } catch (err) {
+      console.error("가져오기 실패", err);
+      alert("파일을 읽는 중 오류가 발생했습니다. 올바른 내보내기 파일인지 확인해주세요.");
+    }
+    document.getElementById("importFileInput").value = "";
+  };
+  reader.readAsText(file);
+}
+
+// ===================== 프로젝트 관리 =====================
+function projectById(id) { return data.projects.find(p => p.id === id); }
+function sortProjects(list) { return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko')); }
+function activeProjects() { return sortProjects(data.projects.filter(p => !p.archived)); }
+
+function toggleProjectList() {
+  data.uiState.projectListCollapsed = !data.uiState.projectListCollapsed;
+  saveData();
+  applyProjectListCollapse();
+}
+function applyProjectListCollapse() {
+  const collapsed = data.uiState.projectListCollapsed;
+  document.getElementById("projectPanelBody").style.display = collapsed ? "none" : "block";
+  document.getElementById("projectListToggleBtn").textContent = collapsed ? "▼ 펼치기" : "▲ 접기";
+}
+
+function addProject() {
+  const nameInput = document.getElementById("newProjectName");
+  const colorInput = document.getElementById("newProjectColor");
+  const name = nameInput.value.trim();
+  if (!name) { alert("프로젝트 이름을 입력해주세요."); return; }
+  data.projects.push({ id: uid(), name, color: colorInput.value, archived: false });
+  nameInput.value = "";
+  saveData();
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+}
+function renameProject(id) {
+  const p = projectById(id);
+  if (!p) return;
+  const name = prompt("프로젝트 이름 수정", p.name);
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  p.name = trimmed;
+  saveData();
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+  renderDateView();
+  renderProjectView();
+}
+function pickProjectColor(id) {
+  const p = projectById(id);
+  if (!p) return;
+  const input = document.createElement("input");
+  input.type = "color";
+  input.value = p.color;
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.addEventListener("input", () => {
+    p.color = input.value;
+    saveData();
+    renderProjects();
+    renderDateView();
+    renderProjectView();
+  });
+  input.addEventListener("change", () => { document.body.removeChild(input); });
+  input.click();
+}
+function archiveProject(id) {
+  const p = projectById(id);
+  if (!p) return;
+  if (!confirm(`"${p.name}" 프로젝트를 보관하시겠습니까? (기록은 유지되며, 언제든 복원할 수 있습니다)`)) return;
+  p.archived = true;
+  saveData();
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+}
+function restoreProject(id) {
+  const p = projectById(id);
+  if (!p) return;
+  p.archived = false;
+  saveData();
+  renderProjects();
+  renderRecordProjectSelect();
+  renderProjectViewSelect();
+}
+function renderProjects() {
+  const list = activeProjects();
+  document.getElementById("projectList").innerHTML = list.map(p => `
+    <span class="project-tag" style="background:${p.color}">
+      <span class="proj-name">${escapeHtml(p.name)}</span>
+      <span class="proj-color" title="색상 변경" onclick="pickProjectColor('${p.id}')">🎨</span>
+      <span class="proj-edit" title="이름 수정" onclick="renameProject('${p.id}')">✎</span>
+      <span class="proj-del" title="보관" onclick="archiveProject('${p.id}')">×</span>
+    </span>
+  `).join("") || `<span style="color:#aaa; font-size:13px;">등록된 프로젝트가 없습니다. 아래에서 추가해주세요.</span>`;
+
+  const archived = data.projects.filter(p => p.archived);
+  document.getElementById("archivedSection").style.display = archived.length ? "block" : "none";
+  document.getElementById("archivedList").innerHTML = archived.map(p => `
+    <span class="archived-tag">${escapeHtml(p.name)} <button onclick="restoreProject('${p.id}')">복원</button></span>
+  `).join("");
+}
+
+// ===================== 기록(Record) CRUD =====================
+function typeLabel(type) { return type === "call" ? "📞 유선통화" : "💬 회의/의견"; }
+function typeBadgeClass(type) { return type === "call" ? "type-call" : "type-meeting"; }
+
+function renderRecordProjectSelect() {
+  const sel = document.getElementById("recProject");
+  const list = activeProjects();
+  sel.innerHTML = list.map(p => `<option value="${p.id}" style="color:${p.color}">${escapeHtml(p.name)}</option>`).join("")
+    || `<option value="">프로젝트를 먼저 추가해주세요</option>`;
+}
+function renderProjectViewSelect() {
+  const sel = document.getElementById("projectViewSelect");
+  const list = activeProjects();
+  if (!currentProjectViewId || !list.some(p => p.id === currentProjectViewId)) {
+    currentProjectViewId = list.length ? list[0].id : null;
+  }
+  sel.innerHTML = list.map(p => `<option value="${p.id}" ${p.id === currentProjectViewId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")
+    || `<option value="">프로젝트가 없습니다</option>`;
+  sel.onchange = () => { currentProjectViewId = sel.value; renderProjectView(); };
+}
+
+function addRecord() {
+  const type = document.getElementById("recType").value;
+  const projectId = document.getElementById("recProject").value;
+  const title = document.getElementById("recTitle").value.trim();
+  const participants = document.getElementById("recParticipants").value.trim();
+  const content = document.getElementById("recContent").value.trim();
+  const followUp = document.getElementById("recFollowup").value.trim();
+  if (!projectId) { alert("프로젝트를 먼저 추가해주세요."); return; }
+  if (!title) { alert("제목을 입력해주세요."); return; }
+  if (!content) { alert("내용을 입력해주세요."); return; }
+  data.records.push({
+    id: uid(), projectId, type, date: currentDate,
+    title, participants, content, followUp,
+    createdAt: Date.now(), updatedAt: Date.now()
+  });
+  document.getElementById("recTitle").value = "";
+  document.getElementById("recParticipants").value = "";
+  document.getElementById("recContent").value = "";
+  document.getElementById("recFollowup").value = "";
+  saveData();
+  renderDateView();
+  renderProjectView();
+}
+function recordById(id) { return data.records.find(r => r.id === id); }
+function deleteRecord(id) {
+  const idx = data.records.findIndex(r => r.id === id);
+  if (idx === -1) return;
+  if (!confirm("이 기록을 삭제하시겠습니까? (삭제 기록 복구에서 되돌릴 수 있습니다)")) return;
+  const [removed] = data.records.splice(idx, 1);
+  data.trash.records.push({ record: removed, deletedAt: Date.now() });
+  saveData();
+  renderDateView();
+  renderProjectView();
+  renderTrash();
+}
+function startEditRecord(id) {
+  editingRecordId = id;
+  renderDateView();
+  renderProjectView();
+}
+function cancelEditRecord() {
+  editingRecordId = null;
+  renderDateView();
+  renderProjectView();
+}
+function saveEditRecord(id) {
+  const r = recordById(id);
+  if (!r) return;
+  const root = document.getElementById("edit-" + id);
+  r.type = root.querySelector(".e-type").value;
+  r.projectId = root.querySelector(".e-project").value;
+  r.date = root.querySelector(".e-date").value || r.date;
+  r.title = root.querySelector(".e-title").value.trim();
+  r.participants = root.querySelector(".e-participants").value.trim();
+  r.content = root.querySelector(".e-content").value.trim();
+  r.followUp = root.querySelector(".e-followup").value.trim();
+  r.updatedAt = Date.now();
+  if (!r.title || !r.content) { alert("제목과 내용은 비워둘 수 없습니다."); return; }
+  editingRecordId = null;
+  saveData();
+  renderDateView();
+  renderProjectView();
+}
+
+function recordEditFormHtml(r) {
+  const projOpts = activeProjects().map(p => `<option value="${p.id}" ${p.id === r.projectId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
+  return `
+    <div class="rec-card" id="edit-${r.id}">
+      <div class="rec-edit-form">
+        <select class="e-type">
+          <option value="meeting" ${r.type === "meeting" ? "selected" : ""}>💬 회의/의견</option>
+          <option value="call" ${r.type === "call" ? "selected" : ""}>📞 유선통화</option>
+        </select>
+        <select class="e-project">${projOpts}</select>
+        <input type="date" class="e-date" value="${r.date}">
+        <input type="text" class="e-title rec-title" value="${escapeHtml(r.title)}" placeholder="제목">
+        <input type="text" class="e-participants" value="${escapeHtml(r.participants || "")}" placeholder="참석자 / 통화 상대방" style="flex:1; min-width:160px;">
+        <textarea class="e-content rec-content">${escapeHtml(r.content)}</textarea>
+        <input type="text" class="e-followup rec-followup" value="${escapeHtml(r.followUp || "")}" placeholder="후속 조치 / 특이사항">
+        <div>
+          <button class="save-btn" onclick="saveEditRecord('${r.id}')">저장</button>
+          <button class="cancel-btn" onclick="cancelEditRecord()">취소</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function recordCardHtml(r, opts) {
+  opts = opts || {};
+  if (editingRecordId === r.id) return recordEditFormHtml(r);
+  const p = projectById(r.projectId);
+  const projBadge = (opts.hideProject || !p) ? "" : `<span class="rec-proj-badge" style="background:${p.color}">${escapeHtml(p.name)}</span>`;
+  const dateBadge = opts.hideDate ? "" : `<span class="rec-date-label">${dateLabelText(r.date)}</span>`;
+  return `
+    <div class="rec-card">
+      <div class="rec-card-head">
+        <span class="rec-badge ${typeBadgeClass(r.type)}">${typeLabel(r.type)}</span>
+        ${projBadge}
+        ${dateBadge}
+      </div>
+      <div class="rec-title">${escapeHtml(r.title)}</div>
+      ${r.participants ? `<div class="rec-participants">👤 ${escapeHtml(r.participants)}</div>` : ""}
+      <div class="rec-content">${escapeHtml(r.content)}</div>
+      ${r.followUp ? `<div class="rec-followup"><span class="rec-followup-label">후속조치</span>${escapeHtml(r.followUp)}</div>` : ""}
+      <div class="rec-actions">
+        <button class="edit-btn" onclick="startEditRecord('${r.id}')">✎ 수정</button>
+        <button class="del-btn" onclick="deleteRecord('${r.id}')">🗑 삭제</button>
+      </div>
+    </div>
+  `;
+}
+
+// ===================== 날짜별 보기 =====================
+function changeDay(n) { currentDate = addDays(currentDate, n); renderDateView(); }
+function goToday() { currentDate = formatDate(new Date()); renderDateView(); }
+
+function renderDateView() {
+  document.getElementById("dateLabel").textContent = dateLabelText(currentDate);
+  const list = data.records.filter(r => r.date === currentDate)
+    .sort((a, b) => a.createdAt - b.createdAt);
+  const el = document.getElementById("dateRecordList");
+  el.innerHTML = list.length
+    ? list.map(r => recordCardHtml(r, { hideDate: true })).join("")
+    : `<div class="empty">이 날짜에 등록된 기록이 없습니다.</div>`;
+}
+
+// ===================== 프로젝트별 보기 =====================
+function setProjectTypeFilter(type) {
+  projectTypeFilter = type;
+  document.querySelectorAll(".type-tab-btn").forEach(b => b.classList.toggle("active", b.dataset.type === type));
+  renderProjectView();
+}
+function filteredProjectRecords() {
+  if (!currentProjectViewId) return [];
+  const keyword = (document.getElementById("projectSearchInput").value || "").trim().toLowerCase();
+  return data.records
+    .filter(r => r.projectId === currentProjectViewId)
+    .filter(r => projectTypeFilter === "all" || r.type === projectTypeFilter)
+    .filter(r => !keyword || (r.title + " " + r.content + " " + (r.participants || "")).toLowerCase().includes(keyword))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+}
+function renderProjectView() {
+  const sel = document.getElementById("projectViewSelect");
+  if (sel.value) currentProjectViewId = sel.value;
+  const list = filteredProjectRecords();
+  const el = document.getElementById("projectRecordList");
+  if (!currentProjectViewId) {
+    el.innerHTML = `<div class="empty">먼저 프로젝트를 추가해주세요.</div>`;
+    return;
+  }
+  if (!list.length) {
+    el.innerHTML = `<div class="empty">조건에 맞는 기록이 없습니다.</div>`;
+    return;
+  }
+  let html = "";
+  let lastMonth = null;
+  list.forEach(r => {
+    const month = r.date.slice(0, 7);
+    if (month !== lastMonth) {
+      html += `<div class="month-header">${monthLabelText(r.date)}</div>`;
+      lastMonth = month;
+    }
+    html += recordCardHtml(r, { hideProject: true });
+  });
+  el.innerHTML = html;
+}
+
+// ===================== 페이지 전환 =====================
+function switchPage(page) {
+  currentPage = page;
+  document.getElementById("page-date").style.display = page === "date" ? "block" : "none";
+  document.getElementById("page-project").style.display = page === "project" ? "block" : "none";
+  document.getElementById("navDateBtn").classList.toggle("active", page === "date");
+  document.getElementById("navProjectBtn").classList.toggle("active", page === "project");
+  if (page === "project") { renderProjectViewSelect(); renderProjectView(); }
+}
+
+// ===================== 삭제 기록 복구 =====================
+function toggleTrashPanel() {
+  const panel = document.getElementById("trashPanel");
+  const isHidden = panel.style.display === "none";
+  panel.style.display = isHidden ? "block" : "none";
+  if (isHidden) renderTrash();
+}
+function renderTrash() {
+  const items = data.trash.records;
+  const el = document.getElementById("trashList");
+  if (!items.length) { el.innerHTML = `<div class="empty">삭제된 기록이 없습니다.</div>`; return; }
+  el.innerHTML = [...items].reverse().map(entry => {
+    const r = entry.record;
+    const p = projectById(r.projectId);
+    const desc = `[${typeLabel(r.type)}] ${p ? p.name + " · " : ""}${escapeHtml(r.title)}`;
+    return `
+      <div class="trash-item">
+        <span class="trash-desc">${desc}</span>
+        <span class="trash-date">${dateLabelText(r.date)}</span>
+        <button onclick="restoreFromTrash('${r.id}')">복구</button>
+      </div>
+    `;
+  }).join("");
+}
+function restoreFromTrash(recordId) {
+  const idx = data.trash.records.findIndex(e => e.record.id === recordId);
+  if (idx === -1) return;
+  const [entry] = data.trash.records.splice(idx, 1);
+  data.records.push(entry.record);
+  saveData();
+  renderDateView();
+  renderProjectView();
+  renderTrash();
+}
+function clearTrash() {
+  if (!data.trash.records.length) return;
+  if (!confirm("삭제 기록을 완전히 비웁니다. 복구할 수 없습니다. 계속할까요?")) return;
+  data.trash.records = [];
+  saveData();
+  renderTrash();
+}
+
+// ===================== 출력 =====================
+function printDateView() {
+  const list = data.records.filter(r => r.date === currentDate).sort((a, b) => a.createdAt - b.createdAt);
+  let html = `<div class="print-block"><div class="print-title">📅 ${dateLabelText(currentDate)} 기록</div>`;
+  if (!list.length) {
+    html += `<div class="empty">이 날짜에 등록된 기록이 없습니다.</div>`;
+  } else {
+    list.forEach(r => { html += printRecHtml(r, { showProject: true }); });
+  }
+  html += `</div>`;
+  document.getElementById("printArea").innerHTML = html;
+  window.print();
+}
+function printProjectView() {
+  if (!currentProjectViewId) { alert("프로젝트를 먼저 선택해주세요."); return; }
+  const p = projectById(currentProjectViewId);
+  const list = filteredProjectRecords();
+  let html = `<div class="print-block"><div class="print-title">📁 ${escapeHtml(p ? p.name : "")} 기록</div>`;
+  if (!list.length) {
+    html += `<div class="empty">조건에 맞는 기록이 없습니다.</div>`;
+  } else {
+    let lastMonth = null;
+    // 출력은 날짜 오름차순이 읽기 편하므로 반대로 정렬
+    [...list].reverse().forEach(r => {
+      const month = r.date.slice(0, 7);
+      if (month !== lastMonth) { html += `<div class="print-group-header">${monthLabelText(r.date)}</div>`; lastMonth = month; }
+      html += printRecHtml(r, { showProject: false });
+    });
+  }
+  html += `</div>`;
+  document.getElementById("printArea").innerHTML = html;
+  window.print();
+}
+function printRecHtml(r, opts) {
+  const p = projectById(r.projectId);
+  const badgeColor = r.type === "call" ? "#43a047" : "#1e88e5";
+  const projPart = (opts.showProject && p) ? ` · ${escapeHtml(p.name)}` : "";
+  return `
+    <div class="print-rec">
+      <div class="print-rec-head">
+        <span class="print-badge" style="background:${badgeColor}">${typeLabel(r.type)}</span>
+        <span class="print-rec-title">${escapeHtml(r.title)}</span>
+        <span class="print-rec-meta">${dateLabelText(r.date)}${projPart}${r.participants ? " · " + escapeHtml(r.participants) : ""}</span>
+      </div>
+      <div class="print-rec-content">${escapeHtml(r.content)}</div>
+      ${r.followUp ? `<div class="print-rec-followup"><strong>후속조치:</strong> ${escapeHtml(r.followUp)}</div>` : ""}
+    </div>
+  `;
+}
+
+// ===================== 시작 =====================
+if (isAuthed()) {
+  showAppView();
+  afterAuth();
+} else {
+  showLoginView();
+}
+</script>
+</body>
+</html>
