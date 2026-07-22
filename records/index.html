@@ -97,7 +97,9 @@
   .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .date-nav button { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 6px; cursor: pointer; }
   .date-nav button:hover { background: #eee; }
-  .date-nav .today-label { font-size: 18px; font-weight: bold; flex: 1; }
+  .date-nav .today-label { font-size: 18px; font-weight: bold; flex: 1; cursor: pointer; text-align: center; border-radius: 6px; padding: 2px 6px; }
+  .date-nav .today-label:hover { background: #f0f0f0; }
+  .date-jump-input { position: absolute; width: 0; height: 0; opacity: 0; border: none; padding: 0; pointer-events: none; }
 
   .rec-form {
     display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; padding: 12px; background: #f8f9fc; border-radius: 8px;
@@ -251,9 +253,10 @@
     <div class="panel">
       <div class="date-nav">
         <button onclick="changeDay(-1)">◀ 이전날</button>
-        <div class="today-label" id="dateLabel"></div>
+        <div class="today-label" id="dateLabel" onclick="openDatePicker()" ondblclick="openDatePicker()" title="클릭하면 달력에서 날짜를 바로 선택할 수 있습니다"></div>
         <button onclick="goToday()">오늘</button>
         <button onclick="changeDay(1)">다음날 ▶</button>
+        <input type="date" id="dateJumpInput" class="date-jump-input" tabindex="-1" onchange="jumpToDate(this.value)">
       </div>
 
       <form class="rec-form" id="recForm" onsubmit="return false;">
@@ -759,8 +762,24 @@ function recordCardHtml(r, opts) {
 function changeDay(n) { currentDate = addDays(currentDate, n); renderDateView(); }
 function goToday() { currentDate = formatDate(new Date()); renderDateView(); }
 
+// 날짜 라벨을 클릭/더블클릭하면 브라우저 기본 달력을 띄운다. 달력 안에서 상단의 "월 년도"를 누르면
+// 월별 목록으로, 거기서 또 누르면 연도별 목록으로 넘어가는 것은 브라우저 자체 동작이라 따로 구현할 필요가 없다.
+function openDatePicker() {
+  const input = document.getElementById("dateJumpInput");
+  input.value = currentDate;
+  if (typeof input.showPicker === "function") {
+    try { input.showPicker(); return; } catch (e) { /* 사용자 제스처 밖 등에서 실패하면 focus로 대체 */ }
+  }
+  input.focus();
+}
+function jumpToDate(value) {
+  if (!value) return;
+  currentDate = value;
+  renderDateView();
+}
+
 function renderDateView() {
-  document.getElementById("dateLabel").textContent = dateLabelText(currentDate);
+  document.getElementById("dateLabel").textContent = dateLabelText(currentDate) + " 📅";
   const list = data.records.filter(r => r.date === currentDate)
     .sort((a, b) => a.createdAt - b.createdAt);
   const el = document.getElementById("dateRecordList");
