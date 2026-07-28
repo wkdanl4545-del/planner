@@ -912,6 +912,7 @@
     <button class="page-nav-btn" onclick="switchPage('flow')" id="navFlowBtn">🗂 프로젝트 플로우</button>
     <button class="page-nav-btn" onclick="switchPage('memo')" id="navMemoBtn">📝 메모 정리</button>
     <button class="page-nav-btn" onclick="switchPage('study')" id="navStudyBtn">📚 스터디 정리</button>
+    <button class="page-nav-btn" onclick="switchPage('team')" id="navTeamBtn">👥 팀 일정</button>
   </div>
 
   <div id="page-planner">
@@ -1047,6 +1048,16 @@
         </div>
       </div>
       <div id="studyContainer"></div>
+    </div>
+  </div>
+
+  <div id="page-team" style="display:none;">
+    <div class="panel">
+      <div class="section-header">
+        <strong>👥 팀 일정 현황 (관광조경1부2팀)</strong>
+        <input type="date" id="teamDateInput" onchange="renderTeamPage()" style="padding:4px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; cursor:pointer;">
+      </div>
+      <div id="teamContainer"></div>
     </div>
   </div>
 
@@ -1738,10 +1749,12 @@ function switchPage(page) {
   document.getElementById("page-flow").style.display = page === "flow" ? "block" : "none";
   document.getElementById("page-memo").style.display = page === "memo" ? "block" : "none";
   document.getElementById("page-study").style.display = page === "study" ? "block" : "none";
+  document.getElementById("page-team").style.display = page === "team" ? "block" : "none";
   document.getElementById("navPlannerBtn").classList.toggle("active", page === "planner");
   document.getElementById("navFlowBtn").classList.toggle("active", page === "flow");
   document.getElementById("navMemoBtn").classList.toggle("active", page === "memo");
   document.getElementById("navStudyBtn").classList.toggle("active", page === "study");
+  document.getElementById("navTeamBtn").classList.toggle("active", page === "team");
   if (page === "flow") {
     renderFlowProjectSelect();
     subscribeFlowMindMap(currentFlowProjectId);
@@ -1750,6 +1763,9 @@ function switchPage(page) {
   } else if (page === "study") {
     renderStudyProjectSelect();
     renderStudyPage();
+  } else if (page === "team") {
+    document.getElementById("teamDateInput").value = currentDate;
+    renderTeamPage();
   }
 }
 
@@ -2893,6 +2909,122 @@ function changeDay(offset) {
 function goToday() {
   currentDate = formatDate(new Date());
   renderTasks();
+}
+
+// ── 팀 일정 ──────────────────────────────────────────
+const TEAM_MEMBERS = [
+  { name: "서경원", title: "상무", role: "팀장" },
+  { name: "고형규", title: "부장", role: "팀원" },
+  { name: "노균호", title: "부장", role: "팀원" },
+  { name: "박정원", title: "차장", role: "팀원" },
+  { name: "최보윤", title: "과장", role: "팀원" },
+  { name: "신예지", title: "대리", role: "팀원" },
+  { name: "송해팀", title: "사원", role: "팀원" },
+];
+
+function getTeamDay(dateStr) {
+  if (!data.teamSchedule) data.teamSchedule = {};
+  if (!data.teamSchedule[dateStr]) data.teamSchedule[dateStr] = {};
+  return data.teamSchedule[dateStr];
+}
+
+function updateTeamMember(dateStr, name, field, value) {
+  const day = getTeamDay(dateStr);
+  if (!day[name]) day[name] = { status: "출근", period: "종일", memo: "" };
+  day[name][field] = value;
+  if (field === "status" && value !== "출장" && value !== "휴가") {
+    day[name].period = "종일";
+  }
+  saveData();
+  renderTeamPage();
+}
+
+function updateTeamMemberMemo(dateStr, name, value) {
+  const day = getTeamDay(dateStr);
+  if (!day[name]) day[name] = { status: "출근", period: "종일", memo: "" };
+  day[name].memo = value;
+  saveData();
+}
+
+function renderTeamPage() {
+  const dateInput = document.getElementById("teamDateInput");
+  const dateStr = dateInput ? dateInput.value : currentDate;
+  const day = getTeamDay(dateStr);
+
+  const STATUS_CFG = {
+    "출근":      { color: "#2e7d32", bg: "#e8f5e9" },
+    "출장":      { color: "#e65100", bg: "#fff3e0" },
+    "휴가":      { color: "#1565c0", bg: "#e3f2fd" },
+    "반차(오전)": { color: "#00695c", bg: "#e0f2f1" },
+    "반차(오후)": { color: "#00695c", bg: "#e0f2f1" },
+    "기타":      { color: "#6a1b9a", bg: "#f3e5f5" },
+  };
+
+  const counts = {};
+  TEAM_MEMBERS.forEach(m => {
+    const s = (day[m.name] && day[m.name].status) || "출근";
+    counts[s] = (counts[s] || 0) + 1;
+  });
+
+  const statusOrder = ["출근","출장","휴가","반차(오전)","반차(오후)","기타"];
+  let summary = `<div style="margin-bottom:14px;padding:12px 16px;background:#f8f9fa;border-radius:8px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">`;
+  summary += `<span style="font-weight:700;color:#333;margin-right:4px;">📊 현황</span>`;
+  statusOrder.forEach(s => {
+    if (!counts[s]) return;
+    const c = STATUS_CFG[s] || { color:"#333", bg:"#eee" };
+    summary += `<span style="padding:3px 12px;border-radius:20px;font-size:13px;font-weight:600;background:${c.bg};color:${c.color};">${s} ${counts[s]}명</span>`;
+  });
+  summary += `</div>`;
+
+  let table = `<table style="width:100%;border-collapse:collapse;font-size:14px;">`;
+  table += `<thead><tr style="background:#f5f5f5;border-bottom:2px solid #e0e0e0;">
+    <th style="padding:10px 12px;text-align:left;color:#555;width:80px;">이름</th>
+    <th style="padding:10px 8px;text-align:left;color:#555;width:55px;">직위</th>
+    <th style="padding:10px 8px;text-align:center;color:#555;width:120px;">상태</th>
+    <th style="padding:10px 8px;text-align:center;color:#555;width:80px;">기간</th>
+    <th style="padding:10px 8px;text-align:left;color:#555;">비고</th>
+  </tr></thead><tbody>`;
+
+  TEAM_MEMBERS.forEach((m, i) => {
+    const info = day[m.name] || {};
+    const status = info.status || "출근";
+    const period = info.period || "종일";
+    const memo   = info.memo   || "";
+    const cfg    = STATUS_CFG[status] || { color:"#333", bg:"#fff" };
+    const needsPeriod = status === "출장" || status === "휴가";
+    const rowBg = i % 2 === 0 ? "#fff" : "#fafafa";
+
+    table += `<tr style="border-bottom:1px solid #eee;background:${rowBg};">
+      <td style="padding:10px 12px;font-weight:600;color:#333;">
+        ${escapeHtml(m.name)}${m.role === "팀장" ? '<span style="margin-left:5px;font-size:10px;background:#bbdefb;color:#1565c0;padding:1px 5px;border-radius:10px;font-weight:700;">팀장</span>' : ''}
+      </td>
+      <td style="padding:10px 8px;color:#666;font-size:13px;">${m.title}</td>
+      <td style="padding:8px;text-align:center;">
+        <select onchange="updateTeamMember('${dateStr}','${escapeHtml(m.name)}','status',this.value)"
+          style="padding:5px 6px;border-radius:6px;border:1.5px solid ${cfg.color};color:${cfg.color};font-weight:600;font-size:13px;background:${cfg.bg};width:110px;cursor:pointer;">
+          ${["출근","출장","휴가","반차(오전)","반차(오후)","기타"].map(s =>
+            `<option value="${s}"${status===s?" selected":""}>${s}</option>`
+          ).join("")}
+        </select>
+      </td>
+      <td style="padding:8px;text-align:center;">
+        ${needsPeriod
+          ? `<select onchange="updateTeamMember('${dateStr}','${escapeHtml(m.name)}','period',this.value)"
+               style="padding:5px 6px;border-radius:6px;border:1px solid #bbb;font-size:13px;width:68px;cursor:pointer;">
+               ${["종일","오전","오후"].map(p=>`<option value="${p}"${period===p?" selected":""}>${p}</option>`).join("")}
+             </select>`
+          : `<span style="color:#ccc;font-size:12px;">—</span>`}
+      </td>
+      <td style="padding:8px;">
+        <input type="text" value="${escapeHtml(memo)}" placeholder="행선지, 사유 등"
+          oninput="updateTeamMemberMemo('${dateStr}','${escapeHtml(m.name)}',this.value)"
+          style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">
+      </td>
+    </tr>`;
+  });
+
+  table += `</tbody></table>`;
+  document.getElementById("teamContainer").innerHTML = summary + table;
 }
 
 if (isPlannerAuthed()) {
