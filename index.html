@@ -1057,6 +1057,19 @@
         <strong>👥 팀 일정 현황 (관광조경1부2팀)</strong>
         <input type="date" id="teamDateInput" onchange="renderTeamPage()" style="padding:4px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; cursor:pointer;">
       </div>
+      <div style="background:#f0f7ff;border:1px solid #90caf9;border-radius:8px;padding:12px 16px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:#1565c0;margin-bottom:8px;">⚡ 빠른 입력</div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <textarea id="teamQuickInput" rows="2"
+            placeholder="예) 서경원 출장 회암고개, 최보윤 출장 오전 현장&#10;이름 상태 [기간] [메모] — 쉼표나 줄바꿈으로 구분"
+            style="flex:1;padding:8px;border:1px solid #bbdefb;border-radius:6px;font-size:13px;resize:vertical;line-height:1.6;font-family:inherit;"></textarea>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button onclick="applyTeamQuickInput()" style="padding:8px 18px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">✓ 적용</button>
+            <button onclick="setAllAttendance()" style="padding:8px 18px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">전원 출근</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#90a4ae;margin-top:6px;">상태 키워드: 출장 / 휴가 / 반차(오전) / 반차(오후) / 기타 · 기간(선택): 오전, 오후, 종일</div>
+      </div>
       <div id="teamContainer"></div>
     </div>
   </div>
@@ -2944,6 +2957,60 @@ function updateTeamMemberMemo(dateStr, name, value) {
   if (!day[name]) day[name] = { status: "출근", period: "종일", memo: "" };
   day[name].memo = value;
   saveData();
+}
+
+function applyTeamQuickInput() {
+  const textarea = document.getElementById("teamQuickInput");
+  const dateInput = document.getElementById("teamDateInput");
+  const dateStr = dateInput ? dateInput.value : currentDate;
+  const text = textarea ? textarea.value.trim() : "";
+  if (!text) return;
+
+  const parts = text.split(/[,，\n]+/).map(s => s.trim()).filter(Boolean);
+  const updated = [];
+
+  for (const part of parts) {
+    const member = TEAM_MEMBERS.find(m => part.includes(m.name));
+    if (!member) continue;
+
+    let rest = part.replace(member.name, "").trim();
+
+    const statusList = ["반차(오전)","반차(오후)","출장","휴가","출근","기타"];
+    let status = "출근";
+    for (const s of statusList) {
+      if (rest.includes(s)) { status = s; rest = rest.replace(s, "").trim(); break; }
+    }
+
+    let period = "종일";
+    if ((status === "출장" || status === "휴가") && /^(종일|오전|오후)(\s|$)/.test(rest)) {
+      period = rest.match(/^(종일|오전|오후)/)[1];
+      rest = rest.replace(/^(종일|오전|오후)\s*/, "");
+    }
+
+    const day = getTeamDay(dateStr);
+    if (!day[member.name]) day[member.name] = { status: "출근", period: "종일", memo: "" };
+    day[member.name].status = status;
+    day[member.name].period = period;
+    day[member.name].memo = rest;
+    updated.push(member.name);
+  }
+
+  if (updated.length === 0) {
+    alert("입력을 인식하지 못했습니다.\n예) 서경원 출장 회암고개, 최보윤 출장");
+    return;
+  }
+  saveData();
+  if (textarea) textarea.value = "";
+  renderTeamPage();
+}
+
+function setAllAttendance() {
+  const dateInput = document.getElementById("teamDateInput");
+  const dateStr = dateInput ? dateInput.value : currentDate;
+  const day = getTeamDay(dateStr);
+  TEAM_MEMBERS.forEach(m => { day[m.name] = { status: "출근", period: "종일", memo: "" }; });
+  saveData();
+  renderTeamPage();
 }
 
 function renderTeamPage() {
