@@ -1532,7 +1532,7 @@ function formatDuration(min) {
 }
 
 function getDay(dateStr) {
-  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [] };
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], memo: "★신대리 : " };
   return data.days[dateStr];
 }
 
@@ -2621,7 +2621,7 @@ function updateDayMemo(value) {
 function renderDayMemo() {
   const day = getDay(currentDate);
   const el = document.getElementById("dayMemoInput");
-  if (el) el.value = day.memo || "";
+  if (el) el.value = (day.memo != null) ? day.memo : "★신대리 : ";
 }
 
 // 메모가 적힌 날짜들을 오래된 순으로 모아 메모 정리 페이지/출력에서 함께 쓴다.
