@@ -1031,8 +1031,18 @@
       <div class="stat" id="statLabel"></div>
       <div>
         <button onclick="printSchedule()">🖨 일정 출력</button>
+        <button onclick="togglePrintDatePicker()" id="printRangeBtn">📅 날짜 선택 출력</button>
         <button onclick="moveUnfinishedToNextDay()">미완료 작업 → 다음날로 이동</button>
       </div>
+    </div>
+    <div id="printDatePicker" style="display:none; margin-top:8px; padding:10px 14px; background:#f0f4ff; border:1px solid #c5cae9; border-radius:8px; align-items:center; flex-wrap:wrap; gap:10px;">
+      <span style="font-size:13px; font-weight:600; color:#3949ab;">📅 출력 날짜 선택</span>
+      <label style="font-size:13px; color:#555;">시작</label>
+      <input type="date" id="printFromDate" style="padding:4px 8px; border:1px solid #ccc; border-radius:6px; font-size:13px;">
+      <label style="font-size:13px; color:#555;">종료</label>
+      <input type="date" id="printToDate" style="padding:4px 8px; border:1px solid #ccc; border-radius:6px; font-size:13px;">
+      <button onclick="printByRange()" style="padding:5px 14px; background:#3949ab; color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer;">🖨 출력</button>
+      <button onclick="togglePrintDatePicker()" style="padding:5px 10px; background:#eee; color:#555; border:none; border-radius:6px; font-size:13px; cursor:pointer;">✕ 닫기</button>
     </div>
 
     <div class="day-memo-section">
@@ -2546,6 +2556,36 @@ function printSchedule() {
   const prev = prevWorkday(currentDate);
   document.getElementById("printArea").innerHTML =
     buildPrintDayBlock(prev) + buildPrintDayBlock(currentDate);
+  window.print();
+}
+
+function togglePrintDatePicker() {
+  const el = document.getElementById("printDatePicker");
+  const visible = el.style.display === "flex";
+  el.style.display = visible ? "none" : "flex";
+  if (!visible) {
+    document.getElementById("printFromDate").value = currentDate;
+    document.getElementById("printToDate").value = currentDate;
+  }
+}
+
+function printByRange() {
+  const from = document.getElementById("printFromDate").value;
+  const to   = document.getElementById("printToDate").value;
+  if (!from || !to) { alert("날짜를 선택해주세요."); return; }
+  if (from > to)    { alert("시작일이 종료일보다 늦습니다."); return; }
+
+  let html = "";
+  let d = from;
+  let limit = 0;
+  while (d <= to && limit < 62) {
+    if (peekDay(d).tasks.length > 0) html += buildPrintDayBlock(d);
+    d = addDays(d, 1);
+    limit++;
+  }
+
+  if (!html) { alert("선택한 기간에 등록된 작업이 없습니다."); return; }
+  document.getElementById("printArea").innerHTML = html;
   window.print();
 }
 
