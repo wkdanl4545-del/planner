@@ -2719,7 +2719,12 @@ function renderDayMemo() {
 // 메모가 적힌 날짜들을 오래된 순으로 모아 메모 정리 페이지/출력에서 함께 쓴다.
 function getMemoEntries() {
   return Object.keys(data.days)
-    .filter(d => data.days[d] && data.days[d].memo && data.days[d].memo.trim())
+    .filter(d => {
+      const memo = data.days[d] && data.days[d].memo;
+      if (!memo || !memo.trim()) return false;
+      const content = memo.replace(/^★신대리\s*:\s*/, "").trim();
+      return content.length > 0;
+    })
     .sort((a, b) => a.localeCompare(b))
     .map(d => ({ date: d, memo: data.days[d].memo.trim() }));
 }
